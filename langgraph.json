@@ -1,0 +1,10 @@
+{
+  "python_version": "3.12",
+  "dependencies": [
+    "."
+  ],
+  "env": "./.env",
+  "graphs": {
+    "ren-agent": "./main.py:app"
+  }
+}
