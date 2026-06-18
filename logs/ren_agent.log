@@ -74,3 +74,191 @@
 2026-06-17 19:44:53 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
 2026-06-17 19:44:53 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
 2026-06-17 19:44:53 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 02:56:36 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 02:56:36 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 02:56:36 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 02:56:36 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 02:58:13 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 02:58:13 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 02:58:13 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 02:58:13 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 03:07:33 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 03:07:33 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 03:07:33 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 03:11:17 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 03:11:17 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 03:11:17 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 03:11:17 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 03:17:15 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 03:17:15 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 03:17:15 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 03:17:15 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 03:30:12 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 03:30:12 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 03:30:12 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 03:30:12 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 03:31:28 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 03:31:28 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 03:31:28 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 03:31:28 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 03:44:28 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 03:44:28 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 03:44:28 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 03:44:28 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 03:47:25 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 03:47:25 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 03:47:25 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 03:47:25 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 03:57:08 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 03:57:08 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 03:57:08 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 03:59:25 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 03:59:25 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 03:59:25 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 03:59:25 | WARNING  | ren_agent.core.ollama_client:check_connection - Ollama 無法連線: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+2026-06-18 04:01:22 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 04:01:22 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 04:01:22 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 04:01:22 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 04:02:28 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 04:02:28 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 04:02:28 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 04:02:28 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 04:09:42 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 04:09:42 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 04:09:42 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 04:11:02 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 04:11:02 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 04:11:02 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 04:12:37 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 04:12:37 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 04:12:37 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 04:13:59 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 04:13:59 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 04:13:59 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 04:13:59 | WARNING  | ren_agent.core.ollama_client:check_connection - Ollama 無法連線: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+2026-06-18 04:15:20 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 04:15:20 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 04:15:20 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 04:15:20 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 04:30:35 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 04:30:35 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 04:30:35 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 04:30:35 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 04:37:54 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 04:37:54 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 04:37:54 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 04:37:54 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 04:43:22 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 04:43:22 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 04:43:22 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 04:43:22 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 04:50:19 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 04:50:19 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 04:50:19 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 04:50:19 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 13:30:09 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 13:30:09 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 13:30:09 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 13:30:09 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 13:38:22 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 13:38:22 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 13:38:22 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 13:38:22 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 13:40:28 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 13:40:28 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 13:40:28 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 13:40:28 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 13:40:40 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 13:40:40 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 13:40:40 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 13:40:41 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 13:41:01 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 13:41:01 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 13:41:01 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 13:41:01 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 13:41:32 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 13:41:32 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 13:41:32 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 13:41:32 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 13:42:06 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 13:42:06 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 13:42:06 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 13:42:06 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 13:54:18 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 13:54:18 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 13:54:18 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 13:54:18 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 13:54:38 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hello...
+2026-06-18 13:55:39 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 200 字
+2026-06-18 14:00:53 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 14:00:53 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 14:00:53 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 14:00:53 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 14:00:55 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hi...
+2026-06-18 14:01:30 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 176 字
+2026-06-18 14:06:55 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 14:06:55 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 14:06:55 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 14:06:55 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 14:07:01 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hi...
+2026-06-18 14:07:36 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 183 字
+2026-06-18 14:15:10 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 14:15:10 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 14:15:10 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 14:15:10 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 14:16:31 | INFO     | ren_agent.core.ollama_client:reset_history - 對話歷史已清空（保留 system prompt）
+2026-06-18 14:18:56 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: 妳好...
+2026-06-18 14:19:34 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 87 字
+2026-06-18 14:23:30 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 14:23:30 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 14:23:30 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 14:23:30 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 14:23:32 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hi...
+2026-06-18 14:23:51 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 171 字
+2026-06-18 14:31:32 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 14:31:32 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 14:31:32 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 14:31:32 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 14:31:35 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hi...
+2026-06-18 14:32:12 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 188 字
+2026-06-18 14:36:49 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 14:36:49 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 14:36:49 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 14:36:49 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 14:36:53 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hi...
+2026-06-18 14:38:03 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 215 字
+2026-06-18 14:38:03 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: helo...
+2026-06-18 14:38:45 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 160 字
+2026-06-18 14:38:45 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hello...
+2026-06-18 14:39:06 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 231 字
+2026-06-18 14:44:41 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 14:44:41 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 14:44:41 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 14:44:41 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 14:44:44 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hi...
+2026-06-18 14:45:19 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 180 字
+2026-06-18 14:45:19 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hello...
+2026-06-18 14:45:42 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 149 字
+2026-06-18 14:48:49 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 14:48:49 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 14:48:49 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 14:48:49 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 14:48:53 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hi...
+2026-06-18 14:49:13 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 186 字
+2026-06-18 14:54:32 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 14:54:32 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 14:54:32 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 14:54:32 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 14:54:34 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hi...
+2026-06-18 14:55:11 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 215 字
+2026-06-18 14:55:11 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hello...
+2026-06-18 14:55:30 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 142 字
+2026-06-18 15:17:07 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 15:17:07 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 15:17:07 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 15:17:07 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 15:17:10 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hi...
+2026-06-18 15:17:48 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 194 字
+2026-06-18 15:17:48 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: how are u...
+2026-06-18 15:18:10 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 168 字
