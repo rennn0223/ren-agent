@@ -1,29 +1,40 @@
 """
-ren-agent TUI 主介面 — v0.2.0
+ren-agent TUI 主介面 — v0.3.0
+
 
 風格參考 Claude Code：
   - 橘色框 welcome card，標題 REN AGENT v0.2.0 嵌入上邊框（永遠顯示）
   - 左欄：Welcome / 臘腸狗 / 模型資訊垂直置中；右欄 Tips + Recent activity
   - Streaming token 即時顯示
   - SlashMenu 上下鍵選取 + Tab/Enter 補全
-  - ROS2 真實 subprocess 整合
+  - ROS2 真實 subprocess 整合（改為 Skills 介面）
   - 回合制對話：忙碌時可排隊，輪到才顯示使用者訊息並串流回覆（Claude/Codex 邏輯）
+  - Slash Command Registry + Skill 介面（v0.3.0）
 """
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
+
+from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.widgets import Input, RichLog, Rule, Static
 from textual.containers import Grid, Horizontal, Vertical
-from textual.reactive import reactive
-from textual import work
-from textual.strip import Strip
 from textual.geometry import Size
+from textual.reactive import reactive
+from textual.strip import Strip
+from textual.widgets import Input, RichLog, Rule, Static
 
 from ren_agent.core.config import get_config
 from ren_agent.core.ollama_client import OllamaAgent
-from ren_agent.tools.ros2_stub import Ros2Tool
+from ren_agent.core.commands import (
+    CommandContext,
+    get_command,
+    register_builtin_commands,
+)
+from ren_agent.core.skills import Skill, run_skill as core_run_skill, register_skill
+from ren_agent.tools.ros2_skills import register_ros2_skills
+
 
 # Claude Code 配色
 C_BG = "#1a1a1a"
@@ -35,6 +46,7 @@ C_INPUT_BG = "#3a3a3a"
 C_INPUT_TEXT = "#ffffff"
 C_PLACEHOLDER = "#949494"
 C_BORDER = "#606060"
+
 
 # 臘腸狗最寬一行 37 字元、共 7 行
 MASCOT_WIDTH = 38
@@ -70,6 +82,7 @@ class HeroCard(Vertical):
     BORDER_TITLE = f"REN AGENT {HERO_VERSION}"
 
 
+# 仍維持給 SlashMenu 用的指令清單（行為由 registry 控制）
 SLASH_COMMANDS: list[tuple[str, str]] = [
     ("/q", "快速提問，後面文字會丟給模型"),
     ("/help", "顯示可用斜線指令"),
@@ -128,7 +141,7 @@ class SlashMenu(Static):
                 )
             else:
                 line = (
-                    f"  "
+                    "  "
                     f"[{C_CMD}]{cmd:<{CMD_COL}}[/{C_CMD}]"
                     f"[{C_DIM}]{desc}[/{C_DIM}]"
                 )
@@ -150,16 +163,28 @@ class CompactRichLog(RichLog):
 
     def write_user(self, message: str) -> None:
         """使用者回合開始（類 Claude 已送出 prompt 樣式）。"""
-        self.write(f"[on {C_INPUT_BG} {C_INPUT_TEXT}]› {message}[/on {C_INPUT_BG} {C_INPUT_TEXT}]")
+        self.write(
+            f"[on {C_INPUT_BG} {C_INPUT_TEXT}]› {message}[/on {C_INPUT_BG} {C_INPUT_TEXT}]"
+        )
 
     def write_cmd(self, cmd: str, desc: str) -> None:
-        self.write(f"[{C_CMD}]{cmd:<{self.CMD_COL}}[/{C_CMD}][{C_DIM}]{desc}[/{C_DIM}]")
+        self.write(
+            f"[{C_CMD}]{cmd:<{self.CMD_COL}}[/{C_CMD}][{C_DIM}]{desc}[/{C_DIM}]"
+        )
 
     def write_dim(self, message: str) -> None:
         self.write(f"[{C_DIM}]{message}[/{C_DIM}]")
 
     def write_error(self, message: str) -> None:
         self.write(f"[red]{message}[/red]")
+
+    def write_system(self, message: str) -> None:
+        """系統訊息（供 CommandCtx 使用）。"""
+        self.write_dim(message)
+
+    def write_assistant(self, message: str) -> None:
+        """一般助手訊息（非串流時使用）。"""
+        self.write(message)
 
     # ── Streaming 支援 ──────────────────────────────────────────
 
@@ -170,8 +195,8 @@ class CompactRichLog(RichLog):
 
     def append_agent_stream(self, full_text: str) -> None:
         """用 full_text 取代目前 agent 回覆的所有行。"""
-        from rich.text import Text
         from rich.segment import Segment
+        from rich.text import Text
 
         console = self.app.console
         render_width = max(
@@ -179,10 +204,14 @@ class CompactRichLog(RichLog):
             self.min_width,
         )
 
-        renderable = Text.from_markup(full_text) if self.markup else Text(full_text)
+        renderable = (
+            Text.from_markup(full_text) if self.markup else Text(full_text)
+        )
         render_options = console.options.update_width(render_width)
         if not self.wrap:
-            render_options = render_options.update(overflow="ignore", no_wrap=True)
+            render_options = render_options.update(
+                overflow="ignore", no_wrap=True
+            )
 
         segments = console.render(renderable, render_options)
         new_strips = [Strip(list(s)) for s in Segment.split_lines(segments)]
@@ -426,21 +455,40 @@ class RenAgentApp(App):
         Binding("ctrl+l", "clear_chat", "清空對話", show=True),
         Binding("ctrl+n", "new_session", "新對話", show=True),
         Binding("tab", "slash_complete", "Slash 補全", show=False, priority=True),
-        Binding("up", "slash_up", "上一個", show=False, priority=True),
-        Binding("down", "slash_down", "下一個", show=False, priority=True),
+        Binding("up", "slash_up", "上一個 / history", show=False, priority=True),
+        Binding("down", "slash_down", "下一個 / history", show=False, priority=True),
     ]
 
-    def __init__(self, model: str = "qwen3.6:35b", ollama_host: str = "http://localhost:11434"):
+    def __init__(
+        self,
+        model: str = "qwen3.6:35b",
+        ollama_host: str = "http://localhost:11434",
+    ):
         super().__init__()
         self.config = get_config()
         self.config.ollama.model = model
         self.config.ollama.host = ollama_host
         self.agent = OllamaAgent(config=self.config.ollama)
         self.agent.set_system_prompt(self.config.agent.system_prompt)
+
         self._thinking = False
-        self.ros2 = Ros2Tool()
         # 佇列項目：(kind, content)，kind 為 "message" 或 "slash"
         self._pending_queue: list[tuple[str, str]] = []
+
+        # v0.3.0：輸入 history + 最後回應時間
+        self._input_history: list[str] = []
+        self._input_history_index: int | None = None
+        self._last_response_at: str | None = None
+
+    # ── Widget helpers ───────────────────────────────────────────
+
+    def _chat(self) -> CompactRichLog:
+        return self.query_one("#chat-log", CompactRichLog)
+
+    def _input(self) -> Input:
+        return self.query_one("#user-input", Input)
+
+    # ── Textual lifecycle ────────────────────────────────────────
 
     def compose(self) -> ComposeResult:
         with HeroCard(id="hero-card"):
@@ -487,10 +535,34 @@ class RenAgentApp(App):
 
     def on_mount(self) -> None:
         self.check_ollama()
-        self.query_one("#user-input", Input).focus()
+        self._input().focus()
 
-    def _chat(self) -> CompactRichLog:
-        return self.query_one("#chat-log", CompactRichLog)
+        # 註冊 Slash commands / Skills
+        register_builtin_commands()
+        register_ros2_skills()
+        # set_model skill：讓 /model 走 Skill 介面
+        register_skill(
+            Skill(
+                name="set_model",
+                description="切換 Ollama 模型",
+                func=self._set_model_skill,
+            )
+        )
+
+    # ── Skill 實作 ───────────────────────────────────────────────
+
+    async def _set_model_skill(self, name: str) -> str:
+        """透過 Skill 介面切換模型（供 /model 使用）。"""
+        name = name.strip()
+        old_model = self.config.ollama.model
+        if not name:
+            return f"目前模型：{old_model}"
+        self.config.ollama.model = name
+        self.agent = OllamaAgent(config=self.config.ollama)
+        self.agent.set_system_prompt(self.config.agent.system_prompt)
+        status = self.query_one(StatusBar)
+        status.status = f"● 已切換模型為 {name}"
+        return f"模型已從 {old_model} 切換為 {name}"
 
     # ── 佇列 helper ────────────────────────────────────────────
 
@@ -513,20 +585,21 @@ class RenAgentApp(App):
     def _update_queue_status(self) -> None:
         status = self.query_one(StatusBar)
         pending = len(self._pending_queue)
+
+        base = f"{self.config.ollama.model}"
+        if self._last_response_at:
+            base = f"{base} · last {self._last_response_at}"
+
         if pending:
             status.status = (
                 f"⟳ 思考中 · 佇列 {pending} 則"
-                f"{self._format_queue_label()}"
-                f" · {self.config.ollama.model}"
+                f"{self._format_queue_label()} · {base}"
             )
         else:
-            status.status = f"● 就緒 · {self.config.ollama.model}"
+            status.status = f"● 就緒 · {base}"
 
     def _enqueue(self, kind: str, content: str) -> None:
-        """把訊息或斜線指令排隊；若閒置則立刻執行。
-
-        忙碌時只更新狀態列，不提前寫入 transcript（Claude/Codex 回合制）。
-        """
+        """把訊息或斜線指令排隊；若閒置則立刻執行。"""
         if self._thinking:
             self._pending_queue.append((kind, content))
             self._update_queue_status()
@@ -562,15 +635,9 @@ class RenAgentApp(App):
         self._drain_queue()
 
     def _sanitize_llm_output(self, full_response: str) -> str:
-        """去除模型常見的 Q:/A: 包裝前綴。
-
-        有些模型會把回答格式化成：
-          Q: ...\nA: ...（或中英文冒號）
-        這會讓 TUI 顯得重複。這裡只針對回覆開頭的 wrapper 做移除。
-        """
+        """去除模型常見的 Q:/A: 包裝前綴。"""
         stripped = full_response.lstrip()
         if stripped.startswith(("Q:", "Q：")):
-            # 找到第一個換行後的 A:，移除 Q 段與標記本身
             if "\nA:" in stripped:
                 idx = stripped.index("\nA:")
                 after = stripped[idx + len("\nA:") :]
@@ -581,7 +648,6 @@ class RenAgentApp(App):
                 return after.lstrip("\n ").lstrip()
 
         if stripped.startswith(("A:", "A：")):
-            # 只砍掉開頭的 A: 標記本身
             after = stripped[2:]
             return after.lstrip("\n ").lstrip()
 
@@ -600,17 +666,23 @@ class RenAgentApp(App):
             menu.remove_class("-visible")
 
     def action_slash_up(self) -> None:
+        """當 SlashMenu 開啟時移動選項，否則瀏覽上一筆輸入。"""
         menu = self.query_one("#slash-menu", SlashMenu)
         if "-visible" in menu.classes:
             menu.move_selection(-1)
+            return
+        self._history_prev()
 
     def action_slash_down(self) -> None:
+        """當 SlashMenu 開啟時移動選項，否則瀏覽下一筆輸入。"""
         menu = self.query_one("#slash-menu", SlashMenu)
         if "-visible" in menu.classes:
             menu.move_selection(1)
+            return
+        self._history_next()
 
     def action_slash_complete(self) -> None:
-        input_widget = self.query_one("#user-input", Input)
+        input_widget = self._input()
         menu = self.query_one("#slash-menu", SlashMenu)
 
         if not input_widget.value.startswith("/"):
@@ -626,6 +698,31 @@ class RenAgentApp(App):
 
         menu.filter_text = ""
         menu.remove_class("-visible")
+
+    # ── Input history ───────────────────────────────────────────
+
+    def _history_prev(self) -> None:
+        if not self._input_history:
+            return
+        input_widget = self._input()
+        if self._input_history_index is None:
+            self._input_history_index = len(self._input_history) - 1
+        elif self._input_history_index > 0:
+            self._input_history_index -= 1
+        input_widget.value = self._input_history[self._input_history_index]
+        input_widget.cursor_position = len(input_widget.value)
+
+    def _history_next(self) -> None:
+        if self._input_history_index is None:
+            return
+        input_widget = self._input()
+        if self._input_history_index < len(self._input_history) - 1:
+            self._input_history_index += 1
+            input_widget.value = self._input_history[self._input_history_index]
+        else:
+            self._input_history_index = None
+            input_widget.value = ""
+        input_widget.cursor_position = len(input_widget.value)
 
     # ── Input 事件 ──────────────────────────────────────────────
 
@@ -646,6 +743,10 @@ class RenAgentApp(App):
 
         event.input.clear()
         self._update_slash_menu("")
+
+        # 記錄輸入 history
+        self._input_history.append(message)
+        self._input_history_index = None
 
         # 斜線指令：不進入對話回合，/bye 可立即執行
         if message.startswith("/"):
@@ -687,7 +788,7 @@ class RenAgentApp(App):
             msg = "✗ Ollama 未啟動 — 請執行: ollama serve"
         self.call_from_thread(setattr, status, "status", msg)
 
-    # ── Streaming LLM 回覆（佇列版）───────────────────────────────
+    # ── Streaming LLM 回覆（佇列版）──────────────────────────────
 
     @work(exclusive=True)
     async def stream_response(self, message: str) -> None:
@@ -705,11 +806,14 @@ class RenAgentApp(App):
         try:
             async for token in self.agent.chat_stream(message):
                 full_response += token
-                chat.append_agent_stream(self._sanitize_llm_output(full_response))
+                chat.append_agent_stream(
+                    self._sanitize_llm_output(full_response)
+                )
             chat.end_agent_stream()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             chat.write_error(f"串流錯誤：{e}")
         finally:
+            self._last_response_at = datetime.now().strftime("%H:%M:%S")
             self._work_finished()
 
     @work(exclusive=True)
@@ -724,131 +828,58 @@ class RenAgentApp(App):
         finally:
             self._work_finished()
 
-    # ── 斜線指令 ────────────────────────────────────────────────
+    # ── 斜線指令（Registry + Skills 版）────────────────────────
 
     async def handle_slash_command(self, raw: str) -> bool:
+        """處理以 / 開頭的指令，回傳是否已處理."""
         chat = self._chat()
 
-        parts = raw[1:].strip().split()
-        if not parts:
-            return False
-
-        cmd = parts[0].lower()
-        args = parts[1:]
-
-        if cmd in ("bye", "exit", "quit"):
-            chat.write_cmd("/bye", "結束並關閉 ren-agent")
-            chat.write_dim("正在關閉...")
-            self.exit()
+        text = raw.lstrip("/")
+        if not text:
+            chat.write_system("空的指令。")
             return True
 
-        if cmd in ("clear", "cls"):
-            self.action_clear_chat()
-            return True
+        parts = text.split(maxsplit=2)
+        cmd = parts[0]
+        sub = parts[1] if len(parts) > 1 else ""
+        rest = parts[2] if len(parts) > 2 else ""
 
-        if cmd == "model" and args:
-            new_model = args[0]
-            old_model = self.config.ollama.model
-            self.config.ollama.model = new_model
-            from ren_agent.core.ollama_client import OllamaAgent as _OllamaAgent
-            self.agent = _OllamaAgent(config=self.config.ollama)
-            self.agent.set_system_prompt(self.config.agent.system_prompt)
-            chat.write_cmd(f"/model {new_model}", f"{old_model} → {new_model}")
-            self.query_one(StatusBar).status = f"● 已切換模型為 {new_model}"
-            return True
-
-        if cmd == "ros":
-            return await self._handle_ros_command(args)
-
-        # /q 或 /ask：後面文字當問題排隊給 LLM
-        if cmd in ("q", "ask") and args:
-            question = " ".join(args)
-            self._enqueue_message(question)
-            return True
-
-        if cmd == "help":
-            chat.write_cmd("/q <text>",          "快速提問，後面文字會丟給模型")
-            chat.write_cmd("/bye",              "結束並關閉 ren-agent")
-            chat.write_cmd("/clear",            "清空對話記錄")
-            chat.write_cmd("/model <name>",     "切換模型，例如 /model qwen3:8b")
-            chat.write_cmd("/ros topics",       "列出目前 ROS2 topics")
-            chat.write_cmd("/ros echo <topic>", "讀取指定 topic 一次")
-            chat.write_cmd("/help",             "顯示這個說明")
-            return True
-
-        chat.write_dim(f"未知指令：{raw}，當一般訊息送給 Agent。")
-        return False
-
-    # ── ROS2 真實 subprocess 整合 ────────────────────────────────
-
-    async def _handle_ros_command(self, args: list[str]) -> bool:
-        chat = self._chat()
-
-        if not args:
-            chat.write_cmd("/ros topics",       "列出目前 ROS2 topics")
-            chat.write_cmd("/ros echo <topic>", "讀取指定 topic 一次")
-            return True
-
-        subcmd = args[0].lower()
-
-        if subcmd == "topics":
-            self._set_thinking(True)
-            result = await self._ros2_run(["ros2", "topic", "list"])
-            self._set_thinking(False)
-            if result is not None:
-                lines = result.strip().splitlines()
-                for line in lines:
-                    chat.write(f"[{C_DIM}]{line}[/{C_DIM}]")
-                if not lines:
-                    chat.write_dim("目前沒有 topic。")
+        # 特別處理 /ros topics /ros echo
+        if cmd in ("ros", "ros2"):
+            if sub == "topics":
+                cmd_key = "ros-topics"
+                args = ""
+            elif sub == "echo":
+                cmd_key = "ros-echo"
+                args = rest
             else:
-                r = self.ros2.topic_list()
-                if r.ok:
-                    chat.write(r.stdout or f"[{C_DIM}]目前沒有 topic。[/{C_DIM}]")
-                else:
-                    chat.write_error(r.stderr)
-            return True
+                chat.write_system("用法：/ros topics 或 /ros echo <topic>")
+                return True
+        else:
+            cmd_key = cmd
+            args = sub + (" " + rest if rest else "")
 
-        if subcmd == "echo" and len(args) >= 2:
-            topic_name = args[1]
-            chat.write_cmd(f"/ros echo {topic_name}", "")
-            self._set_thinking(True)
-            result = await self._ros2_run(
-                ["ros2", "topic", "echo", "--once", topic_name],
-                timeout=5.0,
+        command = get_command(cmd_key)
+        if not command:
+            chat.write_dim(
+                f"未知指令：/{cmd_key}，視為一般訊息送給 Agent。"
             )
-            self._set_thinking(False)
-            if result is not None:
-                chat.write(result.strip() or f"[{C_DIM}]沒有收到資料。[/{C_DIM}]")
-            else:
-                r = self.ros2.topic_echo_once(topic_name)
-                if r.ok:
-                    chat.write(r.stdout or f"[{C_DIM}]沒有收到資料。[/{C_DIM}]")
-                else:
-                    chat.write_error(r.stderr)
-            return True
+            return False  # 交給 LLM 處理
 
-        chat.write_error("未知的 ROS2 子指令。可用：topics / echo <topic>")
+        ctx = self._CommandCtx(self)
+
+        # 把原始輸入寫進 chat（讓你看得到自己打的指令）
+        chat.write_user(raw)
+
+        # /clear 先清畫面與歷史
+        if cmd_key == "clear":
+            chat.clear()
+            self.agent.reset_history()
+            self._pending_queue.clear()
+            self._update_queue_status()
+
+        await command.handler(ctx, args)
         return True
-
-    @staticmethod
-    async def _ros2_run(cmd: list[str], timeout: float = 10.0) -> str | None:
-        """非同步執行 ros2 CLI。成功回傳 stdout；失敗或 timeout 回傳 None。"""
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            try:
-                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            except asyncio.TimeoutError:
-                proc.kill()
-                await proc.communicate()
-                return None
-            return stdout.decode(errors="replace") if proc.returncode == 0 else None
-        except FileNotFoundError:
-            return None
 
     # ── Action handlers ─────────────────────────────────────────
 
@@ -860,3 +891,29 @@ class RenAgentApp(App):
 
     def action_new_session(self) -> None:
         self.action_clear_chat()
+
+    # ── Command Context（給 core.commands 使用）─────────────────
+
+    class _CommandCtx(CommandContext):
+        def __init__(self, app: "RenAgentApp") -> None:
+            self.app = app
+
+        async def write_user(self, text: str) -> None:
+            self.app._chat().write_user(text)
+
+        async def write_assistant(self, text: str) -> None:
+            self.app._chat().write_assistant(text)
+
+        def write_system(self, text: str) -> None:
+            self.app._chat().write_system(text)
+
+        async def ask_llm(self, prompt: str) -> None:
+            # 直接走 queue / streaming 流程
+            self.app._enqueue_message(prompt)
+
+        def exit_app(self) -> None:
+            self.app.exit()
+
+        async def run_skill(self, name: str, **kwargs) -> None:
+            result = await core_run_skill(name, **kwargs)
+            self.app._chat().write_system(result)
