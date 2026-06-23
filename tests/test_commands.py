@@ -1,23 +1,22 @@
 # tests/test_commands.py
-
 import asyncio
 
 from ren_agent.core.commands import (
     CommandContext,
+    all_commands,
     get_command,
     register_builtin_commands,
 )
-from ren_agent.core.skills import register_skill, Skill
 
 
 class DummyCtx(CommandContext):
     def __init__(self) -> None:
-        self.user = []
-        self.assistant = []
-        self.system = []
-        self.asked = []
+        self.user: list[str] = []
+        self.assistant: list[str] = []
+        self.system: list[str] = []
+        self.asked: list[str] = []
         self.exited = False
-        self.skills_log = []
+        self.skills_log: list[tuple[str, dict]] = []
 
     async def write_user(self, text: str) -> None:
         self.user.append(text)
@@ -28,28 +27,46 @@ class DummyCtx(CommandContext):
     def write_system(self, text: str) -> None:
         self.system.append(text)
 
+    def write_renderable(self, obj) -> None:
+        self.system.append(repr(obj))
+
     async def ask_llm(self, prompt: str) -> None:
         self.asked.append(prompt)
 
     def exit_app(self) -> None:
         self.exited = True
 
-    async def run_skill(self, name: str, **kwargs) -> None:
-        self.skills_log.append((name, kwargs))
+    async def run_skill(self, skill: str, **kwargs) -> None:
+        self.skills_log.append((skill, kwargs))
 
 
 def test_builtin_commands_register() -> None:
     register_builtin_commands()
-    assert get_command("help") is not None
-    assert get_command("q") is not None
-    assert get_command("model") is not None
+    for name in ("help", "model", "clear", "bye", "drive", "goto", "ros-pub"):
+        assert get_command(name) is not None, name
 
 
-def test_q_command_calls_llm() -> None:
+def test_drive_command_invokes_skill() -> None:
     register_builtin_commands()
-    cmd = get_command("q")
+    cmd = get_command("drive")
     assert cmd is not None
-
     ctx = DummyCtx()
-    asyncio.run(cmd.handler(ctx, "幫我寫一個 ROS2 範例"))
-    assert ctx.asked == ["幫我寫一個 ROS2 範例"]
+    asyncio.run(cmd.handler(ctx, "forward 0.5 2"))
+    assert ctx.skills_log == [
+        ("drive", {"direction": "forward", "speed": 0.5, "duration": 2.0})
+    ]
+
+
+def test_goto_list_routes_to_goto_list_skill() -> None:
+    register_builtin_commands()
+    cmd = get_command("goto")
+    assert cmd is not None
+    ctx = DummyCtx()
+    asyncio.run(cmd.handler(ctx, "list"))
+    assert ctx.skills_log == [("goto_list", {})]
+
+
+def test_all_commands_unique() -> None:
+    register_builtin_commands()
+    names = [c.name for c in all_commands()]
+    assert len(names) == len(set(names))

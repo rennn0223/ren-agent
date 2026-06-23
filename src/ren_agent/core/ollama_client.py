@@ -1,96 +1,137 @@
-"""
-Ollama 非同步客戶端 — 負責跟本地 Ollama 伺服器溝通。
-使用 async/await 是因為串流輸出需要「邊生成邊顯示」，
-如果用同步方式會卡住整個 TUI 介面。
-"""
-from typing import AsyncIterator          # 標示這個函式會「一個一個」產出值（token）
-from ollama import AsyncClient            # 官方 Python SDK 的非同步版本[web:83]
+"""Ollama 非同步客戶端（含 tool calling 迴圈）。"""
+from __future__ import annotations
+
+import json
+from typing import Any, AsyncIterator, Awaitable, Callable
+
 from loguru import logger
+from ollama import AsyncClient
+
 from ren_agent.core.config import OllamaConfig
 
 
-class OllamaAgent:
-    """
-    封裝 Ollama 的對話功能。
-    好處：之後想換模型、加工具呼叫、加 RAG，只要改這一層就好。
-    """
+ToolCallback = Callable[[str, dict, str], Awaitable[None]]
+"""(tool_name, arguments, result_str) — TUI 用來顯示 → 呼叫 / ← 結果"""
 
+
+class OllamaAgent:
     def __init__(self, config: OllamaConfig | None = None):
-        # 如果沒傳 config 進來，就用預設值建一個新的
         self.config = config or OllamaConfig()
-        # 不在這裡共用 AsyncClient，減少 event loop 相關 bug
         self.history: list[dict] = []
-        logger.debug(f"OllamaAgent 初始化完成 | model={self.config.model}")
+        logger.debug(f"OllamaAgent 初始化 | model={self.config.model}")
 
     def set_system_prompt(self, prompt: str) -> None:
-        """
-        設定 system prompt（AI 的角色設定）。
-        system prompt 放在 history 第一筆，role 必須是 "system"。
-        """
-        # 先把舊的 system message 移除，避免重複
         self.history = [m for m in self.history if m.get("role") != "system"]
-        # 插入到最前面（index 0），因為 system prompt 要排在所有對話之前
         self.history.insert(0, {"role": "system", "content": prompt})
-        logger.debug("System prompt 已設定")
 
     def reset_history(self) -> None:
-        """
-        清空對話歷史，但保留 system prompt。
-        用於「開新對話」功能，讓 AI 忘記之前說的話，但維持同樣的角色設定。
-        """
         system = [m for m in self.history if m.get("role") == "system"]
         self.history = system
-        logger.info("對話歷史已清空（保留 system prompt）")
 
-    async def chat_stream(self, user_message: str) -> AsyncIterator[str]:
-        """
-        送出一則訊息，並以串流方式逐字 yield 回應的 token。
+    # ── 主要進入點 ────────────────────────────────────────
 
-        官方 async 用法示意（簡化版）[web:83][web:85]：
-            client = AsyncClient()
-            async for part in await client.chat(..., stream=True):
-                ...
-        """
-        # 把使用者訊息加進歷史
+    async def chat_stream(
+        self,
+        user_message: str,
+        tools: list[dict] | None = None,
+        on_tool_call: ToolCallback | None = None,
+        max_tool_iters: int = 5,
+    ) -> AsyncIterator[str]:
+        """送出訊息並串流回覆。若提供 tools，會自動執行 tool call 迴圈。"""
         self.history.append({"role": "user", "content": user_message})
-        logger.debug(f"送出訊息: {user_message[:60]}...")
-
-        full_response = ""   # 用來收集完整回應，最後存回 history
 
         try:
             client = AsyncClient(host=self.config.host)
+        except Exception as e:  # noqa: BLE001
+            yield f"\n[錯誤] 無法建立 Ollama client：{e}"
+            return
 
-            async for chunk in await client.chat(
-                model=self.config.model,
-                messages=self.history,
-                stream=True,
-            ):
-                # chunk.message.content 就是這次的一小段文字（可能是一個字或幾個字）
-                token = chunk.message.content or ""
-                full_response += token
-                yield token
+        for _ in range(max_tool_iters):
+            full_text = ""
+            tool_calls: list[Any] = []
 
-            # 對話完成後，把完整回應存進歷史
-            self.history.append({"role": "assistant", "content": full_response})
-            logger.debug(f"回應完成，共 {len(full_response)} 字")
+            try:
+                async for chunk in await client.chat(
+                    model=self.config.model,
+                    messages=self.history,
+                    tools=tools or None,
+                    stream=True,
+                ):
+                    msg = chunk.message
+                    if msg.tool_calls:
+                        tool_calls = list(msg.tool_calls)
+                    token = msg.content or ""
+                    if token:
+                        full_text += token
+                        yield token
+            except Exception as e:  # noqa: BLE001
+                logger.error(f"Ollama 錯誤: {e}")
+                yield f"\n[錯誤] {e}"
+                return
 
-        except Exception as e:
-            # 連線失敗時不讓程式崩潰，改成顯示錯誤訊息給使用者
-            logger.error(f"Ollama 錯誤: {e}")
-            yield f"\n[錯誤] 無法連線到 Ollama ({self.config.host})：{e}"
+            if not tool_calls:
+                self.history.append({"role": "assistant", "content": full_text})
+                return
+
+            # 紀錄 assistant 的 tool_calls 訊息
+            self.history.append({
+                "role": "assistant",
+                "content": full_text,
+                "tool_calls": [_tc_to_dict(tc) for tc in tool_calls],
+            })
+
+            # 執行每個 tool
+            from ren_agent.core.skills import run_skill  # 避免循環 import
+
+            for tc in tool_calls:
+                fn_name = tc.function.name
+                args = _parse_args(tc.function.arguments)
+                try:
+                    result = await run_skill(fn_name, **args)
+                except Exception as e:  # noqa: BLE001
+                    result = f"[tool error] {e}"
+                if on_tool_call is not None:
+                    await on_tool_call(fn_name, args, result)
+                self.history.append({
+                    "role": "tool",
+                    "name": fn_name,
+                    "content": result,
+                })
+
+            # 迴圈：再丟回 LLM，看是否還要再 call 或開始回答
+        else:
+            yield "\n[警告] 工具呼叫超過上限，已中止。"
 
     async def check_connection(self) -> bool:
-        """
-        測試 Ollama 伺服器是否在線上。
-        TUI 啟動時會呼叫這個，顯示在狀態列。
-        回傳 True = 連線成功，False = 連線失敗。
-        """
         try:
             client = AsyncClient(host=self.config.host)
-            models = await client.list()
-            available = [m.model for m in models.models]
-            logger.info(f"Ollama 連線成功 | 可用模型: {available}")
+            await client.list()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(f"Ollama 無法連線: {e}")
             return False
+
+
+def _parse_args(raw: Any) -> dict:
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw) if raw.strip() else {}
+        except json.JSONDecodeError:
+            return {}
+    # Pydantic model
+    if hasattr(raw, "model_dump"):
+        return raw.model_dump()
+    return {}
+
+
+def _tc_to_dict(tc: Any) -> dict:
+    if hasattr(tc, "model_dump"):
+        return tc.model_dump()
+    return {
+        "function": {
+            "name": tc.function.name,
+            "arguments": tc.function.arguments,
+        }
+    }

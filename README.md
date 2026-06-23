@@ -120,11 +120,14 @@ renagent connect
 | 指令 | 功能 |
 |---|---|
 | `/help` | 顯示所有可用指令 |
-| `/q <問題>` | 直接把內容送給模型 |
 | `/clear` | 清空對話記錄與 AI 歷史 |
-| `/model <名稱>` | 切換模型，例如 `/model llama3.2` |
+| `/model <名稱>` | 切換模型，例如 `/model qwen3:8b` |
 | `/ros topics` | 列出目前 ROS2 topics |
 | `/ros echo <topic>` | 單次讀取指定 topic |
+| `/ros type <topic>` | 顯示 topic 的訊息型別與欄位 |
+| `/ros pub <topic> <json>` | 發布 JSON 到指定 topic（自動推斷型別） |
+| `/drive forward\|back\|left\|right\|stop [speed] [duration]` | 控制車子，預設 0.3 m/s 跑 1 秒後自動 stop |
+| `/goto <地名>` / `/goto list` | 從 `locations.yaml` 取座標送 JSON 給 Isaac Sim |
 | `/bye` | 結束並關閉 ren-agent |
 
 ### 鍵盤快捷鍵

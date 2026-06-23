@@ -30,10 +30,10 @@ def test_chat_stream_yields_tokens_and_saves_history() -> None:
         agent = OllamaAgent(OllamaConfig(model="qwen3:8b"))
 
         chunk1 = type("Chunk", (), {})()
-        chunk1.message = type("Msg", (), {"content": "Hello"})()
+        chunk1.message = type("Msg", (), {"content": "Hello", "tool_calls": None})()
 
         chunk2 = type("Chunk", (), {})()
-        chunk2.message = type("Msg", (), {"content": " world"})()
+        chunk2.message = type("Msg", (), {"content": " world", "tool_calls": None})()
 
         async def fake_chat(*args, **kwargs):
             async def agen():
