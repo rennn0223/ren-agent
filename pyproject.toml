@@ -1,6 +1,6 @@
 [project]
 name = "ren-agent"
-version = "0.2.0"
+version = "0.3.1"
 description = "Automotive AI Agent with TUI, ROS2 control, and Ollama backend"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -19,6 +19,7 @@ dependencies = [
 
 [project.scripts]
 ren-agent = "ren_agent.__main__:app"
+ren-agent-tui = "ren_agent.tui.main:run"
 
 [dependency-groups]
 dev = [
@@ -38,8 +39,8 @@ line-length = 100
 target-version = "py312"
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = ["--disable-plugin-autoload"]
 
 [build-system]
 requires = ["hatchling"]

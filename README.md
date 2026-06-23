@@ -11,28 +11,31 @@
 ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝
 ```
 
----
+***
 
 ## ✨ 功能特色
 
 - 🤖 **本地 LLM**：透過 Ollama 串接，無需雲端、保護隱私
 - 🖥️ **TUI 介面**：基於 Textual 的互動式終端界面
 - 🚗 **車載場景**：系統提示針對導航、安全、診斷等車載情境設計
-- 📡 **ROS2 整合**（開發中）：讀取車載 topic、控制導航模組
-- ⚡ **斜線指令**：內建 `/help`、`/clear`、`/model`、`/bye`
+- 📡 **ROS2 整合**：支援 `/ros topics`、`/ros echo <topic>` 等 CLI/skill 方式操作 ROS2 topic
+- ⚡ **斜線指令**：內建 `/help`、`/clear`、`/model`、`/bye`、`/q`
+- 🔌 **Skills / Commands 架構**：TUI 只管 UI，能力邏輯拆到 registry 與 skills 模組
+- 🚀 **一鍵啟動**：可透過 `renagent connect` 自動載入 ROS2 環境並開啟 TUI
 
----
+***
 
 ## 📋 系統需求
 
 | 需求 | 版本 |
 |---|---|
-| Python | 3.11+ |
+| Python | 3.12+ |
 | uv | 最新版 |
 | Ollama | 最新版 |
-| OS | Linux / macOS（推薦）|
+| OS | Linux / macOS（推薦） |
+| ROS2 | Humble/相容版本（若需 ROS2 功能） |
 
----
+***
 
 ## 🚀 安裝步驟
 
@@ -46,34 +49,41 @@ source $HOME/.cargo/env   # 或重新開啟 terminal
 ### 2. 安裝 Ollama 並拉取模型
 
 ```bash
-# 安裝 Ollama
 curl -fsSL https://ollama.com/install.sh | sh
 
 # 啟動 Ollama 服務
 ollama serve &
 
 # 拉取你想用的模型（擇一）
-ollama pull qwen2.5:7b        # 輕量版，適合一般硬體
-ollama pull llama3.2          # Meta Llama 3.2
-ollama pull qwen3:8b          # 推薦：效果與速度平衡佳
+ollama pull qwen2.5:7b
+ollama pull llama3.2
+ollama pull qwen3:8b
 ```
 
 ### 3. Clone 專案
 
 ```bash
-git clone https://github.com/rennn223/ren-agent.git
+git clone https://github.com/rennn0223/ren-agent.git
 cd ren-agent
 ```
 
 ### 4. 安裝專案依賴
 
 ```bash
-uv sync --all-extras --dev
+uv sync --dev
 ```
 
-uv 會自動建立 `.venv` 並安裝所有依賴，不需要手動 `pip install`。
+uv 會自動建立 `.venv` 並安裝依賴，不需要手動 `pip install`。
 
 ### 5. 啟動 TUI
+
+#### 方式 A：直接啟動
+
+```bash
+uv run python -m ren_agent.tui.main
+```
+
+#### 方式 B：用 CLI 啟動
 
 ```bash
 uv run ren-agent tui
@@ -85,7 +95,21 @@ uv run ren-agent tui
 uv run ren-agent tui --model qwen3:8b --host http://localhost:11434
 ```
 
----
+#### 方式 C：一鍵啟動（推薦）
+
+先建立 `renagent` 啟動腳本並加入 PATH，之後可直接：
+
+```bash
+renagent connect
+```
+
+這個指令會：
+
+- source ROS2 環境
+- 進入 `ren-agent` 專案目錄
+- 以 uv 啟動 TUI
+
+***
 
 ## 🎮 使用方式
 
@@ -96,8 +120,11 @@ uv run ren-agent tui --model qwen3:8b --host http://localhost:11434
 | 指令 | 功能 |
 |---|---|
 | `/help` | 顯示所有可用指令 |
-| `/clear` | 清空對話記錄與 AI 記憶 |
+| `/q <問題>` | 直接把內容送給模型 |
+| `/clear` | 清空對話記錄與 AI 歷史 |
 | `/model <名稱>` | 切換模型，例如 `/model llama3.2` |
+| `/ros topics` | 列出目前 ROS2 topics |
+| `/ros echo <topic>` | 單次讀取指定 topic |
 | `/bye` | 結束並關閉 ren-agent |
 
 ### 鍵盤快捷鍵
@@ -105,18 +132,19 @@ uv run ren-agent tui --model qwen3:8b --host http://localhost:11434
 | 快捷鍵 | 功能 |
 |---|---|
 | `Enter` | 送出訊息 |
+| `Tab` | 補全目前 Slash 指令 |
+| `↑ / ↓` | SlashMenu 選取 / 輸入 history |
 | `Ctrl+L` | 清空對話 |
 | `Ctrl+N` | 新對話 |
-| `F1` | 收合 / 展開側欄 |
 | `Ctrl+C` | 強制離開 |
 
----
+***
 
 ## 🛠️ 開發指令
 
 ```bash
 # 程式碼檢查
-uv run ruff check src/ tests
+uv run ruff check src tests
 
 # 型別檢查
 uv run mypy src
@@ -125,35 +153,38 @@ uv run mypy src
 uv run pytest -q
 
 # 同時跑全部（建議每次 commit 前執行）
-uv run ruff check src/ tests && uv run mypy src && uv run pytest -q
+uv run ruff check src tests && uv run mypy src && uv run pytest -q
 ```
 
----
+***
 
 ## 📁 專案結構
 
-```
+```text
 ren-agent/
 ├── src/ren_agent/
-│   ├── __main__.py          # CLI 入口（typer）
+│   ├── __main__.py              # CLI 入口（typer）
 │   ├── core/
-│   │   ├── config.py        # Pydantic 設定 + YAML 持久化
-│   │   ├── logger.py        # Loguru 結構化日誌
-│   │   └── ollama_client.py # Async Ollama 串流客戶端
-│   ├── tui/
-│   │   └── app.py           # Textual TUI 主介面
-│   └── tools/
-│       └── ros2_stub.py     # ROS2 工具 stub（v0.2 實作）
-├── tests/                   # 單元測試（v0.3 補完）
-├── .github/workflows/
-│   ├── ci.yml               # PR 自動 lint + test
-│   └── release.yml          # push tag → 自動發版
-├── ROADMAP.md               # 開發路線圖
-├── CHANGELOG.md             # 版本紀錄
-└── pyproject.toml           # uv 專案設定
+│   │   ├── commands.py          # Slash command registry
+│   │   ├── config.py            # Pydantic 設定
+│   │   ├── logger.py            # Loguru 結構化日誌
+│   │   ├── ollama_client.py     # Async Ollama 串流客戶端
+│   │   └── skills.py            # Skill registry / run_skill
+│   ├── tools/
+│   │   └── ros2_skills.py       # ROS2 skills（topics / echo）
+│   └── tui/
+│       ├── app.py               # Textual TUI 主介面
+│       └── main.py              # python -m 啟動入口
+├── scripts/
+│   └── renagent                 # 一鍵 connect 啟動腳本
+├── tests/
+│   └── test_commands.py         # 指令 / registry 測試
+├── ROADMAP.md                   # 開發路線圖
+├── README.md
+└── pyproject.toml
 ```
 
----
+***
 
 ## 🗺️ 開發路線圖
 
@@ -162,31 +193,35 @@ ren-agent/
 | 版本 | 狀態 | 主要內容 |
 |---|---|---|
 | v0.1.0 | ✅ 完成 | TUI 基礎框架 + Ollama 對話 |
-| v0.2.0 | 🔨 開發中 | ROS2 topic 整合 |
-| v0.3.0 | 📋 規劃中 | 指令系統擴充 + 測試覆蓋 |
-| v0.4.0 | 📋 規劃中 | 車載場景雛形 |
-| v0.5.0 | 📋 規劃中 | Dashboard + Plugin 平台 |
+| v0.2.0 | ✅ 完成 | ROS2 topic 整合 + 錯誤提示 |
+| v0.3.0 | 🔨 進行中 | Skills / Commands 架構、一鍵啟動、測試補齊 |
+| v0.4.0 | 📋 規劃中 | 車載導航 / 安全 / 診斷雛形 |
+| v0.5.0 | 📋 規劃中 | WebUI / Dashboard + Plugin 平台 |
 
----
+***
 
 ## 🤝 協作開發
 
-這個專案使用 GitHub Flow 進行協作：
+目前建議以 `master` 為主線，功能先在 feature branch 開發，等 v0.3.0 穩定後再集中 compare / PR。
 
-1. 從 `develop` 分支建立 `feature/你的功能` 分支
-2. 開發完成後開 Pull Request → `develop`
-3. 互相 Code Review（至少 1 人 approve）
+```text
+feature/xxx  ->  master
+```
+
+建議流程：
+
+1. 從 `master` 開 `feature/你的功能`
+2. 在 feature branch 開發與自測
+3. 功能成熟後再開 Pull Request → `master`
 4. CI 通過後 merge
-5. 達到里程碑時，PR → `master` 並打 tag
+5. 達到里程碑時打 tag / release
 
----
+***
 
 ## 📜 授權
 
 MIT License — 詳見 [LICENSE](./LICENSE)
 
----
-
+***
 
 Made with ❤️ and a very long dachshund 🐾
-

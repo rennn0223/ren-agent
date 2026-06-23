@@ -1,6 +1,6 @@
 """
-ROS2 工具封裝（v0.2 起步版）
-先用 subprocess 包 ros2 CLI，後續再擴充成真正的 adapter / tool layer。
+ROS2 CLI adapter.
+使用 subprocess 封裝 ros2 CLI，供 skills / services 呼叫。
 """
 from __future__ import annotations
 
