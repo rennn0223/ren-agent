@@ -1,17 +1,27 @@
-"""設定檔模組（Pydantic + YAML）。"""
+"""
+設定檔模組（Pydantic + YAML 持久化）。
+
+設計重點：
+  - 每個子設定（Ollama / Agent / Ros2）獨立 class，方便 IDE 自動補全
+  - 預設值寫在 class 裡，沒有 yaml 也能跑
+  - get_config() 是單例，TUI 改模型後 skill 端看到同一份
+  - 設定檔位置：~/.config/ren-agent/config.yaml
+"""
 from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, Field
 
 
+# ── Ollama 子設定 ─────────────────────────────────────
 class OllamaConfig(BaseModel):
     host: str = "http://localhost:11434"
     model: str = "qwen3.6:35b"
-    timeout: int = 120
-    stream: bool = True
+    timeout: int = 120        # 連線逾時秒數（目前 ollama-python 沒直接用）
+    stream: bool = True       # 是否串流
 
 
+# ── Agent 子設定（人格 / 角色提示）────────────────────
 class AgentConfig(BaseModel):
     name: str = "ren-agent"
     system_prompt: str = (
@@ -23,11 +33,13 @@ class AgentConfig(BaseModel):
     )
 
 
+# ── ROS2 子設定（topic 名稱可被使用者覆寫）─────────────
 class Ros2Config(BaseModel):
-    cmd_vel_topic: str = "/cmd_vel"
-    goal_topic: str = "/ren_agent/goal"  # Isaac Sim 訂閱這條 (std_msgs/String, JSON)
+    cmd_vel_topic: str = "/cmd_vel"            # /drive 發到這條（geometry_msgs/Twist）
+    goal_topic: str = "/ren_agent/goal"        # /goto 發到這條（std_msgs/String + JSON）
 
 
+# ── 頂層設定 ──────────────────────────────────────────
 class AppConfig(BaseModel):
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
@@ -35,6 +47,7 @@ class AppConfig(BaseModel):
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "AppConfig":
+        """讀 yaml；檔案不存在或空就用預設值。"""
         config_path = Path(path)
         if config_path.exists():
             with open(config_path, encoding="utf-8") as f:
@@ -43,19 +56,26 @@ class AppConfig(BaseModel):
         return cls()
 
     def save_yaml(self, path: str | Path) -> None:
+        """把目前設定寫回 yaml（會建立缺少的目錄）。"""
         config_path = Path(path)
         config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.safe_dump(self.model_dump(), f, sort_keys=False, allow_unicode=True)
 
 
+# ── 預設路徑與單例存取 ────────────────────────────────
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "ren-agent" / "config.yaml"
 
+# 模組級單例（首次呼叫 get_config 時載入）
 _cached: AppConfig | None = None
 
 
 def get_config() -> AppConfig:
-    """單例設定（讓 skill 與 TUI 看到同一份）。"""
+    """
+    取得目前設定的單例。
+    TUI 啟動會載一次；之後 skill / drive / goto 全部共用同一份，
+    所以 TUI 改 model 後 skill 看到的也是新值。
+    """
     global _cached
     if _cached is None:
         _cached = AppConfig.from_yaml(DEFAULT_CONFIG_PATH)
