@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_ROOT="${REN_AGENT_ROOT:-$HOME/ren-agent}"
+ROS_SETUP="${REN_AGENT_ROS_SETUP:-/opt/ros/humble/setup.bash}"
+
+cmd="${1:-connect}"
+
+case "$cmd" in
+  connect)
+    echo "[renagent] connecting..."
+    if [ -f "$ROS_SETUP" ]; then
+      echo "[renagent] sourcing ROS setup: $ROS_SETUP"
+      # shellcheck disable=SC1090
+      . "$ROS_SETUP"
+    else
+      echo "[renagent] warning: ROS setup not found: $ROS_SETUP" >&2
+    fi
+
+    cd "$PROJECT_ROOT"
+    echo "[renagent] project: $PROJECT_ROOT"
+    uv run python -m ren_agent.tui.main
+    ;;
+
+  tui)
+    cd "$PROJECT_ROOT"
+    uv run python -m ren_agent.tui.main
+    ;;
+
+  *)
+    echo "Usage: renagent [connect|tui]" >&2
+    exit 1
+    ;;
+esac

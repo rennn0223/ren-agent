@@ -262,3 +262,9 @@
 2026-06-18 15:17:48 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 194 字
 2026-06-18 15:17:48 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: how are u...
 2026-06-18 15:18:10 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 168 字
+2026-06-18 16:14:14 | INFO     | ren_agent.core.logger:setup_logger - Logger initialized | level=INFO
+2026-06-18 16:14:14 | DEBUG    | ren_agent.core.ollama_client:__init__ - OllamaAgent 初始化完成 | model=qwen3.6:35b
+2026-06-18 16:14:14 | DEBUG    | ren_agent.core.ollama_client:set_system_prompt - System prompt 已設定
+2026-06-18 16:14:14 | INFO     | ren_agent.core.ollama_client:check_connection - Ollama 連線成功 | 可用模型: ['nemotron3:33b', 'qwen3.6:35b', 'qwen3-coder:30b', 'qwen3.6:latest', 'qwen3:8b', 'nemotron-3-super:120b']
+2026-06-18 16:14:33 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 送出訊息: hi...
+2026-06-18 16:15:09 | DEBUG    | ren_agent.core.ollama_client:chat_stream - 回應完成，共 197 字
