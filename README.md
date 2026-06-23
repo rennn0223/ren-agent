@@ -15,11 +15,12 @@
 
 ## ✨ 功能特色
 
-- 🤖 **本地 LLM**：透過 Ollama 串接，無需雲端、保護隱私
-- 🖥️ **TUI 介面**：基於 Textual 的互動式終端界面
-- 🚗 **車載場景**：系統提示針對導航、安全、診斷等車載情境設計
-- 📡 **ROS2 整合**：支援 `/ros topics`、`/ros echo <topic>` 等 CLI/skill 方式操作 ROS2 topic
-- ⚡ **斜線指令**：內建 `/help`、`/clear`、`/model`、`/bye`、`/q`
+- 🤖 **本地 LLM**：透過 Ollama 串接，無需雲端、保護隱私（預設 `qwen3.6:35b`）
+- 🖥️ **Claude Code 風 TUI**：圓角邊框、橘色 focus、spinner、自動置中 welcome panel
+- 🚗 **車輛控制**：`/drive forward|back|left|right|stop` 直接發 `geometry_msgs/Twist` 到 `/cmd_vel`
+- 📍 **座標導航**：`/goto 應科大樓` 從 `locations.yaml` 查 `{x, y}` JSON 發給 Isaac Sim
+- 📡 **ROS2 整合（rclpy）**：單例 Node + executor，`/ros topics|echo|type|pub` 自動推斷訊息型別
+- 🛠️ **Ollama Tool Calling**：LLM 看懂自然語言「往前走」「帶我去機械系館」自己呼叫工具
 - 🔌 **Skills / Commands 架構**：TUI 只管 UI，能力邏輯拆到 registry 與 skills 模組
 - 🚀 **一鍵啟動**：可透過 `renagent connect` 自動載入 ROS2 環境並開啟 TUI
 
@@ -169,20 +170,25 @@ ren-agent/
 │   ├── __main__.py              # CLI 入口（typer）
 │   ├── core/
 │   │   ├── commands.py          # Slash command registry
-│   │   ├── config.py            # Pydantic 設定
+│   │   ├── config.py            # Pydantic 設定（含 ROS2 topic 名稱）
 │   │   ├── logger.py            # Loguru 結構化日誌
-│   │   ├── ollama_client.py     # Async Ollama 串流客戶端
-│   │   └── skills.py            # Skill registry / run_skill
+│   │   ├── ollama_client.py     # Async Ollama 串流 + tool calling 迴圈
+│   │   └── skills.py            # Skill registry（含 tool_schema）
 │   ├── tools/
-│   │   └── ros2_skills.py       # ROS2 skills（topics / echo）
+│   │   ├── ros2_node.py         # rclpy 單例 Node + executor thread
+│   │   ├── ros2_skills.py       # topic list / echo / type / publish
+│   │   ├── drive.py             # /drive：發 Twist 到 /cmd_vel
+│   │   └── goto.py              # /goto：地名→JSON 給 Isaac Sim
+│   ├── data/
+│   │   └── locations.yaml       # 校園地點座標表
 │   └── tui/
 │       ├── app.py               # Textual TUI 主介面
 │       └── main.py              # python -m 啟動入口
 ├── scripts/
 │   └── renagent                 # 一鍵 connect 啟動腳本
-├── tests/
-│   └── test_commands.py         # 指令 / registry 測試
+├── tests/                       # commands / config / ollama agent
 ├── ROADMAP.md                   # 開發路線圖
+├── CHANGELOG.md
 ├── README.md
 └── pyproject.toml
 ```
@@ -197,9 +203,10 @@ ren-agent/
 |---|---|---|
 | v0.1.0 | ✅ 完成 | TUI 基礎框架 + Ollama 對話 |
 | v0.2.0 | ✅ 完成 | ROS2 topic 整合 + 錯誤提示 |
-| v0.3.0 | 🔨 進行中 | Skills / Commands 架構、一鍵啟動、測試補齊 |
-| v0.4.0 | 📋 規劃中 | 車載導航 / 安全 / 診斷雛形 |
-| v0.5.0 | 📋 規劃中 | WebUI / Dashboard + Plugin 平台 |
+| v0.3.0 | ✅ 完成 | Skills / Commands 架構、一鍵啟動 |
+| v0.3.1 | ✅ 完成 | rclpy 化、`/drive` `/goto`、Ollama tool calling、Claude Code 風 TUI |
+| v0.4.0 | 📋 規劃中 | Isaac Sim 串接驗證、本地座標 frame、locations 編輯介面 |
+| v0.5.0 | 📋 規劃中 | 多車協調、SLAM hook、安全/診斷 |
 
 ***
 
