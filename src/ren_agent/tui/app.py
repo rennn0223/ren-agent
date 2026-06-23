@@ -52,7 +52,7 @@ C_BORDER = "#606060"
 MASCOT_WIDTH = 38
 MASCOT_HEIGHT = 7
 
-HERO_VERSION = "v0.2.0"
+HERO_VERSION = "v0.3.0"
 
 _MASCOT_LINES = (
     ',                      ," e`--o',
