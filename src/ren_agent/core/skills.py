@@ -57,8 +57,14 @@ def all_tools() -> List[dict]:
     return [s.tool_schema for s in _SKILLS.values() if s.tool_schema]
 
 
-async def run_skill(name: str, **kwargs: Any) -> str:
-    """執行指定 skill；找不到會拋 KeyError。"""
+async def run_skill(name: str, /, **kwargs: Any) -> str:
+    """
+    執行指定 skill；找不到會拋 KeyError。
+
+    第一個參數用 positional-only（`/`），避免 skill 自身的關鍵字參數
+    （例如 goto 的 name）跟這裡的 `name` 撞名造成
+    `got multiple values for argument 'name'`。
+    """
     skill = _SKILLS.get(name)
     if not skill:
         raise KeyError(f"Skill not found: {name}")

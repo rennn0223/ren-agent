@@ -34,7 +34,7 @@
 | uv | 最新版 |
 | Ollama | 最新版 |
 | OS | Linux / macOS（推薦） |
-| ROS2 | Humble/相容版本（若需 ROS2 功能） |
+| ROS2 | Jazzy/相容版本（若需 ROS2 功能） |
 
 ***
 
@@ -205,6 +205,7 @@ ren-agent/
 | v0.2.0 | ✅ 完成 | ROS2 topic 整合 + 錯誤提示 |
 | v0.3.0 | ✅ 完成 | Skills / Commands 架構、一鍵啟動 |
 | v0.3.1 | ✅ 完成 | rclpy 化、`/drive` `/goto`、Ollama tool calling、Claude Code 風 TUI |
+| v0.3.2 | ✅ 完成 | `/route` 路線規劃、`/domain` 動態切換、`/agent` 指令、Markdown 渲染、置中 welcome |
 | v0.4.0 | 📋 規劃中 | Isaac Sim 串接驗證、本地座標 frame、locations 編輯介面 |
 | v0.5.0 | 📋 規劃中 | 多車協調、SLAM hook、安全/診斷 |
 

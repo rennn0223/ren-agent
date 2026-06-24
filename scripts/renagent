@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="${REN_AGENT_ROOT:-$HOME/ren-agent}"
-ROS_SETUP="${REN_AGENT_ROS_SETUP:-/opt/ros/humble/setup.bash}"
+ROS_SETUP="${REN_AGENT_ROS_SETUP:-/opt/ros/jazzy/setup.bash}"
 
 cmd="${1:-connect}"
 
@@ -11,8 +11,11 @@ case "$cmd" in
     echo "[renagent] connecting..."
     if [ -f "$ROS_SETUP" ]; then
       echo "[renagent] sourcing ROS setup: $ROS_SETUP"
+      # ROS setup.bash 內部會引用未定義變數，需暫時關掉 nounset/errexit
+      set +u +e
       # shellcheck disable=SC1090
       . "$ROS_SETUP"
+      set -u -e
     else
       echo "[renagent] warning: ROS setup not found: $ROS_SETUP" >&2
     fi
