@@ -45,6 +45,22 @@ def _load_locations() -> Dict[str, Dict[str, float]]:
     return data.get("locations", {})
 
 
+def _resolve_location(query: str, locations: Dict[str, Dict[str, float]]) -> str | None:
+    """
+    把使用者講的地名對應到 yaml 裡的正式名稱。
+    先精確比對；再用雙向子字串比對（例如「應科」→「應科大樓」）。
+    """
+    q = query.strip()
+    if not q:
+        return None
+    if q in locations:
+        return q
+    for name in locations:
+        if q in name or name in q:
+            return name
+    return None
+
+
 async def goto_skill(name: str) -> str:
     """送出指定地點 → JSON {x, y} → Isaac Sim。"""
     name = name.strip()
@@ -82,6 +98,52 @@ async def goto_list_skill() -> str:
     return "\n".join(lines)
 
 
+async def route_skill(start: str, goal: str) -> str:
+    """
+    「從 start 走到 goal」：
+      1. 從 locations.yaml 查出起點/終點座標
+      2. 發布 go_agent_route 指令到 command_topic（觸發同事那端跑路線）
+      3. 把起點/終點座標印在對話欄位（給使用者確認）
+    """
+    locations = _load_locations()
+    start_name = _resolve_location(start, locations)
+    goal_name = _resolve_location(goal, locations)
+
+    missing = []
+    if not start_name:
+        missing.append(start)
+    if not goal_name:
+        missing.append(goal)
+    if missing or start_name is None or goal_name is None:
+        choices = "、".join(locations) or "（無）"
+        return f"找不到地點：{'、'.join(missing)}。可用：{choices}"
+
+    s = locations[start_name]
+    g = locations[goal_name]
+
+    # 發布 go_agent_route 觸發指令
+    ros, err = safe_get_ros2()
+    if not ros:
+        pub_note = f"未發布 go_agent_route（ROS2 不可用：{err}）"
+    else:
+        topic = get_config().ros2.command_topic
+        payload = json.dumps({"cmd": "go_agent_route"}, ensure_ascii=False)
+        try:
+            subs = await asyncio.to_thread(ros.publish_command, topic, payload)
+            pub_note = f"已發布 go_agent_route → {topic}"
+            if not subs:
+                pub_note += "（注意：目前沒有訂閱者，訊息可能沒被接收）"
+        except Exception as e:  # noqa: BLE001
+            pub_note = f"發布 go_agent_route 失敗：{e}"
+
+    return (
+        f"路線：{start_name} → {goal_name}\n"
+        f"  {start_name}: x={s['x']}, y={s['y']}\n"
+        f"  {goal_name}: x={g['x']}, y={g['y']}\n"
+        f"{pub_note}"
+    )
+
+
 # ── Ollama tool schema ───────────────────────────────
 _GOTO_TOOL = {
     "type": "function",
@@ -113,8 +175,30 @@ _GOTO_LIST_TOOL = {
     },
 }
 
+_ROUTE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "route",
+        "description": (
+            "Plan a route from a start location to a goal location (e.g. user says "
+            "'從應科走到機械系館' / 'go from A to B'). Looks up both coordinates in "
+            "locations.yaml, publishes the 'go_agent_route' command, and reports both "
+            "coordinates back to the user."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "start": {"type": "string", "description": "Start location name."},
+                "goal": {"type": "string", "description": "Goal location name."},
+            },
+            "required": ["start", "goal"],
+        },
+    },
+}
+
 
 def register_goto_skills() -> None:
     """TUI on_mount() 呼叫一次。"""
     register_skill(Skill("goto", "送出地點座標給 Isaac Sim", goto_skill, tool_schema=_GOTO_TOOL))
     register_skill(Skill("goto_list", "列出可用地點", goto_list_skill, tool_schema=_GOTO_LIST_TOOL))
+    register_skill(Skill("route", "規劃路線並發布 go_agent_route", route_skill, tool_schema=_ROUTE_TOOL))

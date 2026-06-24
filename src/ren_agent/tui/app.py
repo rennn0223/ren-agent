@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from typing import Any, Callable
 
 from rich.align import Align
 from rich.console import Group
@@ -43,6 +44,7 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.events import Resize
 from textual.geometry import Size
 from textual.reactive import reactive
 from textual.strip import Strip
@@ -155,8 +157,8 @@ def _append_history(line: str) -> None:
 def _build_welcome_panel(model: str) -> Align:
     banner = Align.center(Text(_BANNER, style=f"bold {C_ORANGE}", no_wrap=True))
     # mascot 與 meta 都左 padding 2 格，跟右欄留視覺距離
-    mascot = Padding(Text(_MASCOT, style=C_ORANGE, no_wrap=True), (0, 0, 0, 2))
-    meta = Padding(Text(f"{model} on Ollama  ·  ~/ren-agent", style=C_DIM), (0, 0, 0, 2))
+    mascot = Padding(Text(_MASCOT, style=C_ORANGE, no_wrap=True), (0, 0, 0, 7))
+    meta = Padding(Text(f"{model} on Ollama  ·  ~/ren-agent", style=C_DIM), (0, 0, 0, 4))
 
     left = Group(mascot, Text(""), meta)
 
@@ -276,9 +278,24 @@ class CompactRichLog(RichLog):
     CMD_COL = CMD_COL
     _agent_stream_line_count: int = 0
 
+    # 開場 welcome panel 的重建函式；只要它還在（使用者尚未開始對話），
+    # 終端 resize 時就 clear 重畫一次，讓 welcome 永遠水平置中。
+    welcome_factory: "Callable[[], Any] | None" = None
+
+    def on_resize(self, event: Resize) -> None:
+        """終端尺寸改變時，若還停在 welcome 畫面就重畫以維持置中。"""
+        super().on_resize(event)
+        if self.welcome_factory is not None:
+            self.clear()
+            # expand=True：撐到整個對話區寬度，Align.center 才有空間置中
+            self.write(self.welcome_factory(), expand=True)
+            self.write("")
+
     # ── 各種 write helper（不同類型訊息上不同色）──
     def write_user(self, message: str) -> None:
         """使用者送出的訊息：深色背景 + › 前綴。"""
+        # 使用者一開口就離開 welcome 畫面，停止 resize 重畫
+        self.welcome_factory = None
         self.write(
             f"[on {C_INPUT_BG} {C_INPUT_TEXT}]› {message}[/on {C_INPUT_BG} {C_INPUT_TEXT}]"
         )
@@ -294,8 +311,39 @@ class CompactRichLog(RichLog):
         self.write_dim(message)
 
     def write_assistant(self, message: str) -> None:
-        """非 streaming 的助手訊息。"""
-        self.write(message)
+        """非 streaming 的助手訊息（Markdown 渲染 + ● 前綴）。"""
+        self.write(self._assistant_renderable(message))
+
+    def _assistant_renderable(self, text: str):
+        """
+        助手回覆統一外觀：左邊一個橘色 ● bullet，右邊 Markdown 內容，
+        用 Table.grid 做 hanging indent（Claude Code 風）。
+        text 是模型原始輸出（Markdown），不是 Rich markup。
+        """
+        from rich.markdown import Markdown
+
+        grid = Table.grid(padding=(0, 1))
+        grid.add_column(width=1, no_wrap=True)   # bullet 欄
+        grid.add_column(ratio=1)                 # 內容欄（會 wrap）
+        bullet = Text("●", style=f"bold {C_ORANGE}")
+        content = Markdown(text) if text.strip() else Text("")
+        grid.add_row(bullet, content)
+        return grid
+
+    def _render_to_strips(self, renderable) -> list[Strip]:
+        """把任意 Rich renderable 轉成 RichLog 的 Strip 行清單。"""
+        from rich.segment import Segment
+
+        console = self.app.console
+        render_width = max(self.scrollable_content_region.width, self.min_width)
+        options = console.options.update_width(render_width)
+        if not self.wrap:
+            options = options.update(overflow="ignore", no_wrap=True)
+        segments = console.render(renderable, options)
+        strips = [Strip(list(s)) for s in Segment.split_lines(segments)]
+        if not strips:
+            strips = [Strip.blank(render_width)]
+        return strips
 
     def write_tool_call(self, name: str, args: dict) -> None:
         """LLM 決定呼叫工具時顯示：→ tool_name({args}) ."""
@@ -322,26 +370,15 @@ class CompactRichLog(RichLog):
 
     def append_agent_stream(self, full_text: str) -> None:
         """
-        重畫助手回覆區塊。
-        每次 streaming 收到新 token 都把整段 full_text 重新渲染：
-          1. 用 Rich console render 把 markup 解析成 Strip 行
+        重畫助手回覆區塊（Markdown live render）。
+        每次 streaming 收到新 token 都把整段 full_text 當 Markdown 重新渲染：
+          1. 用 _assistant_renderable 包成 ● + Markdown grid，render 成 Strip 行
           2. 刪掉 RichLog.lines 末尾舊行（上次寫了幾行就刪幾行）
           3. 把新行 append，更新 virtual_size 與捲動位置
-        這樣使用者看到的就是「逐字浮現」的效果。
+        這樣使用者看到的就是「逐字浮現 + 即時格式化」的效果。
+        full_text 是模型原始輸出（Markdown），不含 Rich markup 前綴。
         """
-        from rich.segment import Segment
-
-        console = self.app.console
-        render_width = max(self.scrollable_content_region.width, self.min_width)
-        renderable = Text.from_markup(full_text) if self.markup else Text(full_text)
-        render_options = console.options.update_width(render_width)
-        if not self.wrap:
-            render_options = render_options.update(overflow="ignore", no_wrap=True)
-
-        segments = console.render(renderable, render_options)
-        new_strips = [Strip(list(s)) for s in Segment.split_lines(segments)]
-        if not new_strips:
-            new_strips = [Strip.blank(render_width)]
+        new_strips = self._render_to_strips(self._assistant_renderable(full_text))
 
         # 刪掉上次寫的舊行
         old_count = self._agent_stream_line_count or 1
@@ -608,8 +645,11 @@ class RenAgentApp(App):
         # 開場 welcome panel — 寫進 chat-log 當第一筆
         # 後續對話會把它往上推（Claude Code 行為）
         chat = self._chat()
-        chat.write(_build_welcome_panel(self.config.ollama.model))
+        # expand=True：撐到整個對話區寬度，Align.center 才有空間置中
+        chat.write(_build_welcome_panel(self.config.ollama.model), expand=True)
         chat.write("")
+        # 記住怎麼重建 welcome；終端 resize 時 CompactRichLog 會用它重畫保持置中
+        chat.welcome_factory = lambda: _build_welcome_panel(self.config.ollama.model)
 
         # 背景測 Ollama 連線（thread worker，不阻塞 mount）
         self.check_ollama()
@@ -707,9 +747,13 @@ class RenAgentApp(App):
     # ── SlashMenu 控制 ───────────────────────────────────
 
     def _update_slash_menu(self, value: str) -> None:
-        """on_input_changed 時呼叫：value 是 / 開頭就顯示 menu。"""
+        """on_input_changed 時呼叫：只在「還在打指令名稱」階段顯示 menu。
+
+        一旦輸入空白（代表指令已選好、開始打參數，如 `/goto 機械系館`），
+        就收起選單，Enter 才會正常送出而不是被導去補全。
+        """
         menu = self.query_one("#slash-menu", SlashMenu)
-        if value.startswith("/"):
+        if value.startswith("/") and " " not in value:
             menu.filter_text = value
             menu.selected_index = 0
             menu.add_class("-visible")
@@ -786,9 +830,10 @@ class RenAgentApp(App):
         if not message:
             return
 
-        # 如果 menu 開著，Enter 當補全用（不送出）
+        # 只有當 menu 開著「且確實有可補全的指令」時，Enter 才當補全用；
+        # 否則照常送出，避免卡在無法 enter 的狀態
         menu = self.query_one("#slash-menu", SlashMenu)
-        if "-visible" in menu.classes:
+        if "-visible" in menu.classes and menu.selected_cmd() is not None:
             self.action_slash_complete()
             return
 
@@ -879,10 +924,8 @@ class RenAgentApp(App):
 
         chat.write_user(message)
         # ── 助手回覆區塊 ──
-        # 用 ● 前綴標記助手訊息（Claude Code 風）
-        # 每段 streaming 文字都會帶這個前綴，append_agent_stream 會
-        # 把整段重畫所以前綴不會掉
-        prefix = f"[bold {C_ORANGE}]●[/bold {C_ORANGE}] "
+        # ● 前綴 + Markdown 渲染由 append_agent_stream 內部負責（Claude Code 風），
+        # 這裡只要餵模型原始 Markdown 文字即可。
         block_text = ""
         chat.begin_agent_stream()
 
@@ -902,7 +945,7 @@ class RenAgentApp(App):
                 on_tool_call=_on_tool,
             ):
                 block_text += token
-                chat.append_agent_stream(prefix + block_text)
+                chat.append_agent_stream(block_text)
             chat.end_agent_stream()
         except asyncio.CancelledError:
             # ESC 中斷 — 收尾畫面，再把 CancelledError 往外丟讓 Textual worker 結束

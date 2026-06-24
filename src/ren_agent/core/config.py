@@ -37,6 +37,12 @@ class AgentConfig(BaseModel):
 class Ros2Config(BaseModel):
     cmd_vel_topic: str = "/cmd_vel"            # /drive 發到這條（geometry_msgs/Twist）
     goal_topic: str = "/ren_agent/goal"        # /goto 發到這條（std_msgs/String + JSON）
+    command_topic: str = "/ai_agent/command"   # /agent 發到這條（std_msgs/String + JSON）
+    # ROS_DOMAIN_ID：None = 沿用啟動 shell 的環境變數；設值會在建立 node 前覆寫 env。
+    # 透過 /domain 指令可動態切換（會重啟 rclpy context）。
+    domain_id: int | None = None
+    # RMW_IMPLEMENTATION：None = 沿用環境（通常是 rmw_fastrtps_cpp）。
+    rmw_implementation: str | None = None
 
 
 # ── 頂層設定 ──────────────────────────────────────────

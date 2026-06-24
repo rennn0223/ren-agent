@@ -17,8 +17,14 @@ from __future__ import annotations
 import asyncio
 import json
 
+from ren_agent.core.config import get_config
 from ren_agent.core.skills import Skill, register_skill
-from ren_agent.tools.ros2_node import Ros2Manager, ensure_json_dict, safe_get_ros2
+from ren_agent.tools.ros2_node import (
+    Ros2Manager,
+    ensure_json_dict,
+    reinit_ros2,
+    safe_get_ros2,
+)
 
 
 # ── 共用 helper ──────────────────────────────────────
@@ -98,6 +104,49 @@ async def ros_publish_skill(
     return f"已發布到 {topic}（{type_str}）：{json.dumps(data, ensure_ascii=False)}"
 
 
+async def set_domain_skill(domain_id: int | str, rmw: str | None = None) -> str:
+    """
+    動態切換 ROS_DOMAIN_ID（並可選 RMW），會用新設定重啟 ROS2 node。
+    """
+    try:
+        did = int(domain_id)
+    except (TypeError, ValueError):
+        return f"domain_id 必須是整數，收到：{domain_id!r}"
+    if not (0 <= did <= 232):
+        return f"ROS_DOMAIN_ID 應在 0–232 之間，收到 {did}"
+
+    try:
+        await asyncio.to_thread(reinit_ros2, did, rmw)
+    except Exception as e:  # noqa: BLE001
+        return f"切換 domain 失敗：{e}"
+
+    extra = f"、RMW={rmw}" if rmw else ""
+    return f"已切換 ROS_DOMAIN_ID={did}{extra}，ROS2 節點已用新設定重啟。"
+
+
+async def agent_command_skill(cmd: str = "go_agent_route") -> str:
+    """
+    發一個指令給 AI agent 控制端：
+    std_msgs/String，data = JSON 字串 `{"cmd": "<cmd>"}`，發到 cfg.ros2.command_topic。
+    等價於同事的 `ros2 topic pub /ai_agent/command std_msgs/msg/String "data: '{...}'"`。
+    """
+    cmd = (cmd or "go_agent_route").strip()
+    ros, err = await _ros_or_err()
+    if not ros:
+        return f"ROS2 不可用：{err}"
+
+    topic = get_config().ros2.command_topic
+    payload = json.dumps({"cmd": cmd}, ensure_ascii=False)
+
+    try:
+        subs = await asyncio.to_thread(ros.publish_command, topic, payload)
+    except Exception as e:  # noqa: BLE001
+        return f"發布失敗：{e}"
+
+    note = "" if subs else "（注意：目前沒有偵測到訂閱者，訊息可能沒被接收）"
+    return f"已發布到 {topic}（std_msgs/String）：{payload}{note}"
+
+
 # ── Tool schemas（給 LLM 看的）───────────────────────
 _ROS_TOPICS_TOOL = {
     "type": "function",
@@ -161,6 +210,54 @@ _ROS_PUB_TOOL = {
 }
 
 
+_SET_DOMAIN_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "set_domain",
+        "description": (
+            "Switch the ROS_DOMAIN_ID (and optionally the RMW implementation) at "
+            "runtime, restarting the ROS2 node. Use when topics are not visible "
+            "because the simulator runs on a different ROS domain."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "domain_id": {
+                    "type": "integer",
+                    "description": "ROS_DOMAIN_ID, 0-232 (e.g. 30).",
+                },
+                "rmw": {
+                    "type": "string",
+                    "description": "Optional RMW, e.g. rmw_fastrtps_cpp.",
+                },
+            },
+            "required": ["domain_id"],
+        },
+    },
+}
+
+_AGENT_CMD_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "agent_command",
+        "description": (
+            "Send a command to the AI agent controller via the command topic "
+            "(std_msgs/String with JSON {\"cmd\": ...}). Use this to trigger "
+            "routines like 'go_agent_route'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "cmd": {
+                    "type": "string",
+                    "description": "Command name, default 'go_agent_route'.",
+                },
+            },
+        },
+    },
+}
+
+
 # ── 註冊入口 ─────────────────────────────────────────
 def register_ros2_skills() -> None:
     """TUI on_mount() 呼叫一次。"""
@@ -168,3 +265,5 @@ def register_ros2_skills() -> None:
     register_skill(Skill("ros_echo", "讀取指定 topic 一次", ros_echo_skill, tool_schema=_ROS_ECHO_TOOL))
     register_skill(Skill("ros_type", "顯示 topic 的訊息型別與欄位", ros_type_skill, tool_schema=_ROS_TYPE_TOOL))
     register_skill(Skill("ros_publish", "發布 JSON 到 topic", ros_publish_skill, tool_schema=_ROS_PUB_TOOL))
+    register_skill(Skill("set_domain", "切換 ROS_DOMAIN_ID（重啟節點）", set_domain_skill, tool_schema=_SET_DOMAIN_TOOL))
+    register_skill(Skill("agent_command", "發指令給 AI agent 控制端", agent_command_skill, tool_schema=_AGENT_CMD_TOOL))

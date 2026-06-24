@@ -149,6 +149,32 @@ async def _cmd_ros_pub(ctx: CommandContext, args: str) -> None:
     await ctx.run_skill("ros_publish", topic=topic, payload=payload)
 
 
+async def _cmd_domain(ctx: CommandContext, args: str) -> None:
+    """/domain <id> [rmw] — 動態切換 ROS_DOMAIN_ID（會重啟 ROS2 節點）。"""
+    parts = args.split()
+    if not parts:
+        ctx.write_system("用法：/domain <id> [rmw]，例如 /domain 30 rmw_fastrtps_cpp")
+        return
+    domain_id = parts[0]
+    rmw = parts[1] if len(parts) > 1 else None
+    await ctx.run_skill("set_domain", domain_id=domain_id, rmw=rmw)
+
+
+async def _cmd_agent(ctx: CommandContext, args: str) -> None:
+    """/agent [cmd] — 發指令給 AI agent 控制端，預設 go_agent_route。"""
+    cmd = args.strip() or "go_agent_route"
+    await ctx.run_skill("agent_command", cmd=cmd)
+
+
+async def _cmd_route(ctx: CommandContext, args: str) -> None:
+    """/route <起點> <終點> — 規劃路線、發布 go_agent_route 並印出座標。"""
+    parts = args.split()
+    if len(parts) < 2:
+        ctx.write_system("用法：/route <起點> <終點>，例如 /route 應科 機械系館")
+        return
+    await ctx.run_skill("route", start=parts[0], goal=parts[1])
+
+
 # ── 車輛控制 ──
 async def _cmd_drive(ctx: CommandContext, args: str) -> None:
     """/drive forward|back|left|right|stop [speed] [duration]."""
@@ -188,3 +214,8 @@ def register_builtin_commands() -> None:
     register_command(SlashCommand("ros-pub", [], "發布 JSON 到 topic（自動推斷型別）", _cmd_ros_pub))
     register_command(SlashCommand("drive", [], "控制車子：forward/back/left/right/stop", _cmd_drive))
     register_command(SlashCommand("goto", [], "送出地點座標給 Isaac Sim", _cmd_goto))
+    register_command(SlashCommand("domain", [], "切換 ROS_DOMAIN_ID，例如 /domain 30", _cmd_domain))
+    register_command(SlashCommand("agent", [], "發指令給 AI agent，例如 /agent go_agent_route", _cmd_agent))
+    register_command(
+        SlashCommand("route", [], "規劃路線：/route <起點> <終點>", _cmd_route)
+    )

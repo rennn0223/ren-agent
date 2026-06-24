@@ -18,7 +18,9 @@ rclpy 單例 Node 管理器。
 from __future__ import annotations
 
 import json
+import os
 import threading
+import time
 from typing import Any
 
 # ── 單例狀態 ─────────────────────────────────────────
@@ -40,6 +42,16 @@ class Ros2Manager:
 
     # ── 初始化（lazy import + 起 executor thread）────
     def __init__(self) -> None:
+        # 在 rclpy.init() 之前套用 ROS_DOMAIN_ID / RMW_IMPLEMENTATION，
+        # 這兩個只有在 context 建立當下才會被讀取，所以一定要在 init 前設好。
+        from ren_agent.core.config import get_config
+
+        cfg = get_config()
+        if cfg.ros2.domain_id is not None:
+            os.environ["ROS_DOMAIN_ID"] = str(cfg.ros2.domain_id)
+        if cfg.ros2.rmw_implementation:
+            os.environ["RMW_IMPLEMENTATION"] = cfg.ros2.rmw_implementation
+
         try:
             import rclpy  # type: ignore[import-not-found]  # noqa: F401
             from rclpy.executors import SingleThreadedExecutor  # type: ignore[import-not-found]
@@ -131,6 +143,29 @@ class Ros2Manager:
         """
         self.publish(topic, "std_msgs/msg/String", {"data": json_payload})
 
+    def publish_command(
+        self, topic: str, json_payload: str, wait_timeout: float = 2.0
+    ) -> int:
+        """
+        發 std_msgs/String 指令，並仿照 `ros2 topic pub --wait-matching-subscriptions 1`：
+        先等到至少一個訂閱者（最多 wait_timeout 秒）再發布，降低訊息漏接。
+
+        回傳發布當下的訂閱者數量（0 代表沒人在聽，呼叫端可據此提示使用者）。
+        """
+        from rosidl_runtime_py.set_message import set_message_fields  # type: ignore[import-not-found]
+
+        type_str = "std_msgs/msg/String"
+        pub = self.get_publisher(topic, type_str)
+
+        deadline = time.monotonic() + max(0.0, wait_timeout)
+        while pub.get_subscription_count() < 1 and time.monotonic() < deadline:
+            time.sleep(0.05)
+
+        msg = self._msg_class(type_str)()
+        set_message_fields(msg, {"data": json_payload})
+        pub.publish(msg)
+        return pub.get_subscription_count()
+
     def echo_once(self, topic: str, timeout: float = 3.0) -> str | None:
         """
         訂閱一次，收到第一個訊息就取消 subscription，回傳 YAML 字串。
@@ -209,6 +244,44 @@ def safe_get_ros2() -> tuple[Ros2Manager | None, str | None]:
         return get_ros2(), None
     except Ros2Unavailable as e:
         return None, str(e)
+
+
+def reinit_ros2(domain_id: int | None = None, rmw: str | None = None) -> Ros2Manager:
+    """
+    用新的 ROS_DOMAIN_ID / RMW 重建 ROS2 node。
+
+    因為 domain / rmw 只在 rclpy context 建立時生效，要動態切換就得：
+      1. 把新值寫進 config（後續建立 node 時會讀）
+      2. 關掉舊 node 與 rclpy context
+      3. 重新建立單例（__init__ 會用新 env 重新 init）
+
+    失敗會丟 Ros2Unavailable。
+    """
+    from ren_agent.core.config import get_config
+
+    cfg = get_config()
+    if domain_id is not None:
+        cfg.ros2.domain_id = domain_id
+    if rmw is not None:
+        cfg.ros2.rmw_implementation = rmw
+
+    global _instance
+    with _lock:
+        old = _instance
+        _instance = None
+        if old is not None:
+            old.shutdown()
+        # 關掉 rclpy context，下次 init 才能套用新 domain
+        try:
+            import rclpy  # type: ignore[import-not-found]
+
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception:
+            pass
+
+    # 在 lock 外呼叫（get_ros2 會自己拿 lock），用新設定重建
+    return get_ros2()
 
 
 # ── 公用小工具 ──────────────────────────────────────

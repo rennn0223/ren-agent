@@ -1,6 +1,6 @@
 [project]
 name = "ren-agent"
-version = "0.3.1"
+version = "0.3.2"
 description = "Automotive AI Agent with TUI, ROS2 control, and Ollama backend"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -15,6 +15,8 @@ dependencies = [
     "httpx>=0.27.0",
     "typer>=0.12.0",
     "pyyaml>=6.0.1",
+    # rclpy（ROS2 Jazzy）執行時需要 numpy；pin <2 以符合 Jazzy 編譯所用的 numpy 1.x ABI
+    "numpy>=1.26,<2",
 ]
 
 [project.scripts]

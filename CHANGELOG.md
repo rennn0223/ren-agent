@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-06-24
+
+### Added
+- **路線規劃**：`/route <起點> <終點>`（或自然語言「從應科走到機械系館」）— 查 `locations.yaml` 兩端座標、發布 `go_agent_route`，並把起點/終點座標印到對話欄位。地名支援簡稱（雙向子字串比對）。
+- **動態 ROS domain**：`/domain <id> [rmw]` 動態切換 `ROS_DOMAIN_ID` / `RMW_IMPLEMENTATION` 並重建 rclpy node。
+- **Agent 指令**：`/agent [cmd]`（預設 `go_agent_route`）發 `std_msgs/String` JSON 到 `/ai_agent/command`，仿 `--wait-matching-subscriptions` 先等訂閱者再發。
+- `route` / `set_domain` / `agent_command` skill + tool schema，LLM 可自主呼叫。
+- `core/context.py`：token 估算，StatusBar 顯示 context 用量。
+- `core/files.py`：專案檔索引 + `@` mention 展開，輸入框 AtMenu 補全。
+- TUI：ESC 中斷串流、Shift+Tab 模式切換 + ModeBar、Ctrl+R 展開工具輸出、ThinkingLine 動態 spinner（秒數 / token）。
+- 助手回覆改 **Markdown 即時渲染**（橘色 ● bullet + hanging indent），串流中即時格式化。
+- welcome panel 隨終端 resize **動態水平置中**（`expand=True` + `on_resize` 重畫）。
+
+### Changed
+- ROS2 發行版從 humble 改為 **jazzy**（`scripts/renagent`、README）。
+- `Ros2Manager` 在 `rclpy.init()` 前套用 domain / rmw；新增 `publish_command`（等待訂閱者）與 `reinit_ros2`。
+- 新增 `numpy>=1.26,<2` 依賴（rclpy 需要，且需相容 Jazzy 的 numpy 1.x ABI）。
+
+### Fixed
+- `run_skill` 第一參數改 positional-only，修 `run_skill("goto", name=...)` 的參數同名衝突。
+- `scripts/renagent` source ROS 前暫關 `set -u/-e`，修 `AMENT_TRACE_SETUP_FILES: unbound variable`。
+- `/goto <地名>` 後輸入參數時 Enter 送不出去（SlashMenu 攔截）。
+
 ## [0.3.1] - 2026-06-24
 
 ### Added
