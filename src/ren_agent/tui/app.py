@@ -34,10 +34,11 @@ import asyncio
 from datetime import datetime
 from typing import Any, Callable
 
+from rich import box
 from rich.align import Align
 from rich.console import Group
-from rich.padding import Padding
 from rich.panel import Panel
+from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 from textual import work
@@ -86,15 +87,7 @@ C_BORDER = "#606060"      # 未 focus 邊框
 # Slash 補全選單裡，指令欄的對齊寬度
 CMD_COL = 22
 
-_BANNER = (
-    "██████╗ ███████╗███╗   ██╗      █████╗  ██████╗ ███████╗███╗   ██╗████████╗\n"
-    "██╔══██╗██╔════╝████╗  ██║     ██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝\n"
-    "██████╔╝█████╗  ██╔██╗ ██║     ███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║\n"
-    "██╔══██╗██╔══╝  ██║╚██╗██║     ██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║\n"
-    "██║  ██║███████╗██║ ╚████║     ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║\n"
-    "╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝"
-)
-
+# 臘腸狗吉祥物（welcome 左欄）
 _MASCOT = (
     ',                      ," e`--o\n'
     "((                     (  | __,'\n"
@@ -156,54 +149,88 @@ def _append_history(line: str) -> None:
 #   └──────────────────────────────────────────────────────┘
 # 整框再用 Align.center 包起來 → 在終端寬度內水平置中
 
-def _build_welcome_panel(model: str) -> Align:
-    banner = Align.center(Text(_BANNER, style=f"bold {C_ORANGE}", no_wrap=True))
-    # mascot 與 meta 都左 padding 2 格，跟右欄留視覺距離
-    mascot = Padding(Text(_MASCOT, style=C_ORANGE, no_wrap=True), (0, 0, 0, 7))
-    meta = Padding(Text(f"{model} on Ollama  ·  ~/ren-agent", style=C_DIM), (0, 0, 0, 4))
+# 只畫「欄與欄之間那條垂直線」的自訂 box（無外框、無橫線）。
+# 每行 4 字元：左框 / 橫線 / 欄間分隔 / 右框；只有 cell 列放 │。
+_VLINE_BOX = box.Box(
+    "    \n"   # top
+    "  │ \n"   # head
+    "    \n"   # head_row
+    "  │ \n"   # mid（cell 列）
+    "    \n"   # row
+    "    \n"   # foot_row
+    "  │ \n"   # foot
+    "    \n"   # bottom
+)
 
-    left = Group(mascot, Text(""), meta)
 
+def _build_welcome_panel(model: str) -> Panel:
+    # ── 左欄：臘腸狗 + 歡迎詞 + 環境資訊（皆置中）──
+    left = Group(
+        Text(""),
+        Align.center(Text("Welcome back!", style=f"bold {C_ORANGE}")),
+        Text(""),
+        Align.center(Text(_MASCOT, style=C_ORANGE, no_wrap=True)),
+        Text(""),
+        Align.center(Text(f"{model} on Ollama", style=C_DIM)),
+        Align.center(Text("~/ren-agent", style=C_DIM)),
+        Text(""),
+    )
+
+    # ── 右欄：上手提示 → 細分隔線 → 最近活動 ──
     tips_title = Text("Tips for getting started", style=f"bold {C_ORANGE}")
     tips = Text.from_markup(
-        f"  [{C_DIM}]Run [/{C_DIM}][{C_CMD}]/help[/{C_CMD}]"
+        f"[{C_DIM}]Run [/{C_DIM}][{C_CMD}]/help[/{C_CMD}]"
         f"[{C_DIM}] to see all commands[/{C_DIM}]\n"
-        f"  [{C_DIM}]Run [/{C_DIM}][{C_CMD}]/ros topics[/{C_CMD}]"
-        f"[{C_DIM}] to inspect ROS2 topics[/{C_DIM}]\n"
-        f"  [{C_DIM}]Run [/{C_DIM}][{C_CMD}]/drive forward 0.3 1[/{C_CMD}]"
+        f"[{C_DIM}]Run [/{C_DIM}][{C_CMD}]/arm[/{C_CMD}]"
+        f"[{C_DIM}] then [/{C_DIM}][{C_CMD}]/drive forward[/{C_CMD}]"
         f"[{C_DIM}] to move the car[/{C_DIM}]\n"
-        f"  [{C_DIM}]Run [/{C_DIM}][{C_CMD}]/goto 應科大樓[/{C_CMD}]"
+        f"[{C_DIM}]Run [/{C_DIM}][{C_CMD}]/goto 應科大樓[/{C_CMD}]"
         f"[{C_DIM}] to send a goal[/{C_DIM}]\n"
-        f"  [{C_DIM}]Or just ask in natural language — the agent can call tools itself[/{C_DIM}]"
+        f"[{C_DIM}]Press [/{C_DIM}][{C_CMD}]Ctrl+X[/{C_CMD}]"
+        f"[{C_DIM}] for emergency stop[/{C_DIM}]\n"
+        f"[#8a8782][i]Or just ask in natural language — the agent calls tools itself[/i][/#8a8782]"
     )
 
     activity_title = Text("Recent activity", style=f"bold {C_ORANGE}")
     recent = _load_recent_history(3)
     if recent:
-        activity = Text("\n".join(f"  {r}" for r in recent), style=C_DIM)
+        activity = Text("\n".join(recent), style=C_DIM)
     else:
-        activity = Text("  (none)", style=C_DIM)
+        activity = Text.from_markup("[#8a8782][i](none yet)[/i][/#8a8782]")
 
-    right = Group(tips_title, tips, Text(""), activity_title, activity)
+    right = Group(
+        tips_title,
+        tips,
+        Rule(style=C_DIM),
+        activity_title,
+        activity,
+    )
 
-    # 兩欄 50/50 grid（修改 ratio 可以調左右寬度）
-    bottom = Table.grid(expand=True, padding=(0, 2))
-    bottom.add_column(ratio=1)
+    # 兩欄 + 中間垂直分隔線（_VLINE_BOX）
+    # 左欄固定寬度（容得下臘腸狗最寬那行 32），右欄吃剩餘空間。
+    # 注意：Panel/Table 都要 expand=True，否則 expand=False 的量測會把
+    # no_wrap 的臘腸狗截頭（踩過的坑）。
+    bottom = Table(
+        box=_VLINE_BOX,
+        show_header=False,
+        expand=True,
+        padding=(0, 2),
+        pad_edge=False,
+        border_style=C_DIM,
+    )
+    bottom.add_column(width=38)
     bottom.add_column(ratio=1)
     bottom.add_row(left, right)
 
-    body = Group(banner, Text(""), bottom)
-
-    # expand=False 讓 Panel 縮成內容寬，再 Align.center 才會視覺置中
-    panel = Panel(
-        body,
+    return Panel(
+        bottom,
         title=f"[bold {C_ORANGE}]REN AGENT v{__version__}[/bold {C_ORANGE}]",
         title_align="left",
         border_style=C_ORANGE,
+        box=box.ROUNDED,
         padding=(1, 2),
-        expand=False,
+        expand=True,
     )
-    return Align.center(panel)
 
 
 # ══════════ Widgets ══════════════════════════════════════
@@ -217,6 +244,10 @@ class SlashMenu(Static):
     # reactive：屬性變動會自動 trigger render
     filter_text = reactive("")
     selected_index = reactive(0)
+
+    # 一次最多顯示幾列（與 CSS max-height 對齊）；指令多於此就捲動。
+    MENU_ROWS = 8
+    _win_start = 0   # 目前可視視窗的起始 index（捲動位置）
 
     def _matches(self) -> list[tuple[str, str]]:
         """根據 filter_text 過濾 registry 裡的指令。"""
@@ -250,11 +281,29 @@ class SlashMenu(Static):
         matches = self._matches()
         if not matches:
             return ""
-        idx = max(0, min(self.selected_index, len(matches) - 1))
+        total = len(matches)
+        idx = max(0, min(self.selected_index, total - 1))
+
+        # ── 計算可視視窗 ──
+        # 指令數不超過 MENU_ROWS：全部顯示，沒有 footer。
+        # 超過時：保留最後一列當 footer（捲動指示），其餘列當內容並讓選取維持可見。
+        scrollable = total > self.MENU_ROWS
+        content_rows = self.MENU_ROWS - 1 if scrollable else self.MENU_ROWS
+
+        start = self._win_start
+        if idx < start:
+            start = idx
+        elif idx >= start + content_rows:
+            start = idx - content_rows + 1
+        start = max(0, min(start, max(0, total - content_rows)))
+        self._win_start = start
+
+        window = matches[start:start + content_rows]
         lines = []
-        for i, (cmd, desc) in enumerate(matches):
+        for i, (cmd, desc) in enumerate(window):
+            real = start + i
             cmd_pad = f"{cmd:<{CMD_COL}}"
-            if i == idx:
+            if real == idx:
                 lines.append(
                     f"[on #2a2a2a][bold white]{cmd_pad}[/bold white]"
                     f"[{C_DIM}]{desc}[/{C_DIM}][/on #2a2a2a]"
@@ -264,6 +313,14 @@ class SlashMenu(Static):
                     f"[white]{cmd_pad}[/white]"
                     f"[{C_DIM}]{desc}[/{C_DIM}]"
                 )
+
+        if scrollable:
+            up = "↑" if start > 0 else " "
+            down = "↓" if start + content_rows < total else " "
+            lines.append(
+                f"[{C_DIM}]{up}{down}  {idx + 1}/{total}"
+                f"  ·  ↑↓ 捲動 · tab 補全[/{C_DIM}]"
+            )
         return "\n".join(lines)
 
 
@@ -777,6 +834,7 @@ class RenAgentApp(App):
         if value.startswith("/") and " " not in value:
             menu.filter_text = value
             menu.selected_index = 0
+            menu._win_start = 0
             menu.add_class("-visible")
         else:
             menu.filter_text = ""

@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] - 2026-06-25
+
+### Changed（TUI）
+- **Welcome 面板改版（Claude Code 風）**：左欄置中（臘腸狗吉祥物 + `Welcome back!` + 模型 / 路徑），中間垂直分隔線，右欄 Tips → 細分隔線 → Recent activity；圓角外框、左上標題。提示更新為 `/arm` → `/drive`、`Ctrl+X` 急停。面板隨終端寬度撐滿並自動重繪。
+- 移除開場大型 ASCII banner（保留臘腸狗）。
+
+### Fixed（TUI）
+- **Slash 指令選單可捲動**：原本只顯示視窗內前幾個指令、方向鍵看不到其餘；改為捲動視窗，`↑↓` 可瀏覽全部指令，並顯示位置指示（`↑↓ n/total`）。
+- 修正 `Panel(expand=False)` 重新量測會把 `no_wrap` 臘腸狗截頭的問題（改用 `expand=True` + 固定左欄寬）。
+
 ## [0.4.0] - 2026-06-25
 
 ### Added（安全層）
