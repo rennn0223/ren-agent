@@ -216,7 +216,7 @@ ren-agent/
 | v0.3.1 | ✅ 完成 | rclpy 化、`/drive` `/goto`、Ollama tool calling、Claude Code 風 TUI |
 | v0.3.2 | ✅ 完成 | `/route` 路線規劃、`/domain` 動態切換、`/agent` 指令、Markdown 渲染、置中 welcome |
 | v0.3.3 | ✅ 完成 | 成熟度自評表（MATURITY.md）、安全優先 ROADMAP 重規劃、安全須知 |
-| v0.4.0 | 🛡️ 規劃中 | **安全層**：E-stop、速度夾限、watchdog、fail-safe、安全測試 |
+| v0.4.0 | ✅ 完成 | **安全層**：arm/disarm 安全閂、E-stop、速度夾限、移動限時 watchdog、關閉 fail-safe |
 | v0.5.0 | 📡 規劃中 | 可靠性 + 可觀測性 + Isaac Sim SIL（狀態機、動作回報、audit trail、`/odom`） |
 | v0.6.0 | 🔐 規劃中 | Security、部署、CI/CD（存取控制、網路隔離、GitHub Actions） |
 | v0.7.0 | 🚗 規劃中 | 多車協調、SLAM hook、telemetry |
