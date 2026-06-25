@@ -3,8 +3,19 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import patch
 
+import pytest
+
+from ren_agent.core import safety_state
 from ren_agent.core.config import AppConfig
 from ren_agent.tools import drive
+
+
+@pytest.fixture(autouse=True)
+def _armed():
+    """這些測試都在「已解鎖」前提下驗證夾限/watchdog 行為。"""
+    safety_state.arm()
+    yield
+    safety_state.disarm()
 
 
 class _FakeRos:

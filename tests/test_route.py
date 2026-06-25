@@ -3,7 +3,17 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import patch
 
+import pytest
+
+from ren_agent.core import safety_state
 from ren_agent.tools import goto
+
+
+@pytest.fixture(autouse=True)
+def _armed():
+    safety_state.arm()
+    yield
+    safety_state.disarm()
 
 
 class _FakeRos:

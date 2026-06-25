@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 
 from ren_agent.core.config import get_config
+from ren_agent.core.safety_state import disarm
 from ren_agent.core.skills import Skill, register_skill
 from ren_agent.tools.ros2_node import safe_get_ros2
 
@@ -29,9 +30,11 @@ def _zero_twist() -> dict:
 
 async def estop_skill() -> str:
     """緊急停止：立即送 0 速度，並（若有設定）發 E-stop 訊號。"""
+    # latch：E-stop 後上鎖，必須重新 /arm 才能再移動
+    disarm()
     ros, err = safe_get_ros2()
     if not ros:
-        return f"🛑 E-STOP：ROS2 不可用（{err}），無法發送停車訊號！"
+        return f"🛑 E-STOP：ROS2 不可用（{err}），無法發送停車訊號！（已上鎖）"
 
     cfg = get_config()
     notes: list[str] = []
@@ -57,6 +60,7 @@ async def estop_skill() -> str:
         except Exception as e:  # noqa: BLE001
             notes.append(f"⚠️ E-stop 訊號失敗：{e}")
 
+    notes.append("已上鎖（需重新 /arm）")
     return "🛑 緊急停止 E-STOP：" + "；".join(notes)
 
 
@@ -65,6 +69,7 @@ def stop_now() -> bool:
     同步、best-effort 送 0 速度。給「fail-safe」場景用（例如 TUI 關閉時），
     不丟例外、不依賴 event loop。回傳是否成功送出。
     """
+    disarm()  # fail-safe 同時上鎖
     ros, _ = safe_get_ros2()
     if not ros:
         return False

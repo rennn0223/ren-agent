@@ -17,6 +17,7 @@
 
 - 🤖 **本地 LLM**：透過 Ollama 串接，無需雲端、保護隱私（預設 `qwen3.6:35b`）
 - 🖥️ **Claude Code 風 TUI**：圓角邊框、橘色 focus、spinner、自動置中 welcome panel
+- 🛡️ **安全層**：arm/disarm 安全閂（預設上鎖）、`Ctrl+X` 緊急停止、速度夾限、移動限時 watchdog、關閉 fail-safe
 - 🚗 **車輛控制**：`/drive forward|back|left|right|stop` 直接發 `geometry_msgs/Twist` 到 `/cmd_vel`
 - 📍 **座標導航**：`/goto 應科大樓` 從 `locations.yaml` 查 `{x, y}` JSON 發給 Isaac Sim
 - 📡 **ROS2 整合（rclpy）**：單例 Node + executor，`/ros topics|echo|type|pub` 自動推斷訊息型別
@@ -127,8 +128,13 @@ renagent connect
 | `/ros echo <topic>` | 單次讀取指定 topic |
 | `/ros type <topic>` | 顯示 topic 的訊息型別與欄位 |
 | `/ros pub <topic> <json>` | 發布 JSON 到指定 topic（自動推斷型別） |
-| `/drive forward\|back\|left\|right\|stop [speed] [duration]` | 控制車子，預設 0.3 m/s 跑 1 秒後自動 stop |
-| `/goto <地名>` / `/goto list` | 從 `locations.yaml` 取座標送 JSON 給 Isaac Sim |
+| `/arm` / `/disarm` | 解鎖 / 上鎖車輛（移動類指令須先 `/arm`） |
+| `/estop`（alias `/stop`） | 緊急停止：立即送 0 速度並上鎖 |
+| `/drive forward\|back\|left\|right\|stop [speed] [duration]` | 控制車子（速度夾限、移動限時、須先 `/arm`） |
+| `/goto <地名>` / `/goto list` | 從 `locations.yaml` 取座標送 JSON 給 Isaac Sim（須先 `/arm`） |
+| `/route <起點> <終點>` | 規劃路線、發 `go_agent_route`、印出座標（須先 `/arm`） |
+| `/domain <id> [rmw]` | 動態切換 `ROS_DOMAIN_ID` / RMW |
+| `/agent [cmd]` | 發指令到 `/ai_agent/command`，預設 `go_agent_route`（須先 `/arm`） |
 | `/bye` | 結束並關閉 ren-agent |
 
 ### 鍵盤快捷鍵
@@ -138,6 +144,7 @@ renagent connect
 | `Enter` | 送出訊息 |
 | `Tab` | 補全目前 Slash 指令 |
 | `↑ / ↓` | SlashMenu 選取 / 輸入 history |
+| `Ctrl+X` | 🛑 緊急停止 E-STOP（立即停車並上鎖） |
 | `Ctrl+L` | 清空對話 |
 | `Ctrl+N` | 新對話 |
 | `Ctrl+C` | 強制離開 |
@@ -215,9 +222,10 @@ ren-agent/
 | v0.7.0 | 🚗 規劃中 | 多車協調、SLAM hook、telemetry |
 | v1.0.0 | 🏁 目標 | 可上線：安全全綠 + SIL/實車驗證 + Security + CI/CD + 文件齊備 |
 
-> ⚠️ **安全須知**：目前（v0.3.2）尚未實作緊急停止、速度夾限、看門狗等安全機制，
-> **請僅在模擬器或無人安全環境中使用，切勿直接控制載人 / 可傷人的實體車輛。**
-> 安全層預計於 v0.4.0 完成，詳見 [MATURITY.md](./MATURITY.md)。
+> ⚠️ **安全須知**：v0.4.0 已加入安全層（arm/disarm 安全閂、E-stop、速度夾限、
+> 移動限時 watchdog、關閉 fail-safe）。車輛**預設上鎖**，須 `/arm` 才能移動，
+> `Ctrl+X` 為緊急停止。但尚未經實體車驗證、也還沒有 geofence / 定位,
+> **仍請優先在模擬器或無人安全環境使用。** 詳見 [MATURITY.md](./MATURITY.md)。
 
 ***
 

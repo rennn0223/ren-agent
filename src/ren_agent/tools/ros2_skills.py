@@ -18,6 +18,7 @@ import asyncio
 import json
 
 from ren_agent.core.config import get_config
+from ren_agent.core.safety_state import DISARMED_MSG, is_armed
 from ren_agent.core.skills import Skill, register_skill
 from ren_agent.tools.ros2_node import (
     Ros2Manager,
@@ -130,6 +131,9 @@ async def agent_command_skill(cmd: str = "go_agent_route") -> str:
     std_msgs/String，data = JSON 字串 `{"cmd": "<cmd>"}`，發到 cfg.ros2.command_topic。
     等價於同事的 `ros2 topic pub /ai_agent/command std_msgs/msg/String "data: '{...}'"`。
     """
+    if not is_armed():
+        return DISARMED_MSG
+
     cmd = (cmd or "go_agent_route").strip()
     ros, err = await _ros_or_err()
     if not ros:

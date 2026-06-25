@@ -12,6 +12,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 - **緊急停止 E-stop**：`Ctrl+X` 快捷鍵 / `/estop`（alias `/stop`）/ 自然語言「緊急停止、停下來」→ 立即送 0 速度到 `cmd_vel`，並 best-effort 發 `std_msgs/Bool` True 到 `safety.estop_topic`（預設 `/ren_agent/estop`）；同時取消進行中的 LLM 串流與佇列。新增 `tools/safety.py`。
 - **移動時間 watchdog**：新增 `SafetyConfig.max_drive_duration`（預設 5.0s）。`/drive` 不再允許「無限驅動」，`duration<=0` 或超過上限都夾到上限，確保車一定會在上限內自動停。
 - **關閉 fail-safe**：TUI 關閉（`on_unmount`）時 best-effort 送一筆停車（`safety.stop_now`），避免離開後車維持最後速度。
+- **arm / disarm 安全閂**：新增 `core/safety_state.py`。車輛預設上鎖，移動類 skill（drive/goto/route/agent_command）未 `/arm` 一律拒絕（同時擋斜線指令與 LLM tool-call）。`/arm`、`/disarm` 指令；E-stop 與關閉 fail-safe 會 latch 上鎖。狀態列常駐 `● ARMED` / `● DISARMED` 徽章。
 
 ## [0.3.3] - 2026-06-25
 

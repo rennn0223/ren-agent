@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 
 from ren_agent.core.config import get_config
+from ren_agent.core.safety_state import DISARMED_MSG, is_armed
 from ren_agent.core.skills import Skill, register_skill
 from ren_agent.tools.ros2_node import safe_get_ros2
 
@@ -64,6 +65,10 @@ async def drive_skill(
     direction = direction.lower().strip()
     if direction not in _DIRECTIONS:
         return f"未知方向：{direction}。可用：{', '.join(_DIRECTIONS)}"
+
+    # ── 1.5 安全閂：未解鎖時拒絕移動（stop 永遠允許）──
+    if direction != "stop" and not is_armed():
+        return DISARMED_MSG
 
     # ── 2. 取 ROS2 manager ──
     ros, err = safe_get_ros2()

@@ -23,14 +23,14 @@
 
 > 這是車控專案跟一般軟體最大的差別，也是目前 ren-agent 最大的缺口。
 
-- [x] **緊急停止 E-stop**：Ctrl+X 快捷鍵 / `/estop` / 自然語言「緊急停止」→ 立即送 0 速度 + 發 E-stop 訊號（`estop_topic`），並取消進行中的 LLM 串流與佇列
-- [~] **失效安全 fail-safe**：✅ TUI 關閉時 best-effort 送停車（`stop_now`）+ agent 卡住由 watchdog 上限兜底；⏳ ROS/Ollama 斷線自動恢復待做
+- [x] **緊急停止 E-stop**：Ctrl+X 快捷鍵 / `/estop` / 自然語言「緊急停止」→ 立即送 0 速度 + 發 E-stop 訊號（`estop_topic`），取消進行中的 LLM 串流與佇列，並 **latch 上鎖**（須重新 /arm）
+- [~] **失效安全 fail-safe**：✅ TUI 關閉時 best-effort 送停車並上鎖（`stop_now`）+ agent 卡住由 watchdog 上限兜底；⏳ ROS/Ollama 斷線自動恢復待做
 - [~] **看門狗 watchdog / 心跳**：✅ 單次移動時間硬上限（`max_drive_duration`，不允許無限驅動，車一定在上限內自動停）；⏳ 接收端 >300ms 心跳超時停車待 Sim/實車端配合
 - [~] **速度 / 加速度上限夾限**：✅ 線速度 / 角速度已在執行層硬夾限（`SafetyConfig.max_linear_speed` / `max_angular_speed`，發 Twist 前 clamp 並透明回報）；⏳ 加速度（斜率）限制尚未做
-- [ ] **地理圍欄 geofence / 工作區邊界**：超出允許範圍拒絕移動
-- [~] **LLM 與執行層之間的驗證閘門**：skill 已驗證輸入（route 找不到地點、domain 範圍檢查）+ 速度已硬夾限；⏳ 仍**未限制可執行動作集**
-- [ ] **危險／不可逆動作需人工確認**：plan / auto-accept 模式目前只是 UI 指示，**未真正攔截執行**
-- [ ] **安全邏輯的自動化測試**：超速被擋、超時停車、E-stop 生效都要有測試覆蓋
+- [x] **危險動作人工確認 / arm-disarm 安全閂**：車輛預設上鎖；移動類 skill（drive/goto/route/agent）未 `/arm` 一律拒絕（同時擋斜線與 LLM tool-call 兩條路）；狀態列常駐 ARMED/DISARMED 徽章
+- [x] **LLM 與執行層之間的驗證閘門**：可呼叫動作集 = 已註冊 tool schema（封閉集合）+ 各 skill 參數驗證 + 速度硬夾限 + arm 閂
+- [~] **安全邏輯的自動化測試**：✅ 速度夾限 / watchdog / E-stop / arm 閂皆有測試；⏳ geofence 等後續項待補
+- [ ] **地理圍欄 geofence / 工作區邊界**：超出允許範圍拒絕移動（⏳ 需要車輛定位 `/odom`，移至 v0.5 一起做）
 
 ---
 
@@ -157,8 +157,9 @@
 
 ---
 
-### 目前體檢結論（v0.3.3）
+### 目前體檢結論（v0.4.0 開發中）
 
 - **強項**：模塊化、可讀性、可測試性、錯誤降級、版本紀律、UX。
-- **最大缺口**：**第一層安全（E-stop / watchdog / 速度夾限 / fail-safe）幾乎空白**——這是從「Demo / 工具」走向「可控實體車產品」最關鍵的一步。
-- **建議下一步（v0.4 安全層）**：先做 ① 執行層速度夾限 + ② E-stop + ③ cmd_vel watchdog，這三項投報率最高、且能立即降低實車風險。
+- **第一層安全（已大幅補上）**：✅ 速度夾限、✅ E-stop（含 latch）、✅ watchdog（移動限時）、✅ 關閉 fail-safe、✅ arm/disarm 安全閂（移動類動作預設上鎖）、✅ 驗證閘門。皆有自動化測試。
+- **仍待補**：geofence（需 `/odom` 定位，併入 v0.5）、接收端心跳超時（需 Sim/實車端配合）、加速度斜率限制、ROS/Ollama 斷線自動恢復。
+- **下一步**：v0.5 接 `/odom` 後補 geofence；持續往可觀測性（audit trail、即時車況）推進。

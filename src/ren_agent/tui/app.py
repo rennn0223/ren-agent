@@ -68,6 +68,7 @@ from ren_agent.core.skills import (
 from ren_agent.tools.drive import register_drive_skills
 from ren_agent.tools.goto import register_goto_skills
 from ren_agent.tools.ros2_skills import register_ros2_skills
+from ren_agent.core.safety_state import is_armed
 from ren_agent.tools.safety import register_safety_skills
 
 
@@ -409,11 +410,20 @@ class StatusBar(Static):
 
     status = reactive("● 初始化中...")
 
+    def on_mount(self) -> None:
+        # 每 0.5s 刷新一次，讓 ARMED/DISARMED 徽章即時反映安全閂狀態
+        # （arm/disarm/E-stop 都在 widget 外改狀態，這裡輪詢最簡單可靠）
+        self.set_interval(0.5, self.refresh)
+
     def render(self) -> str:
         hint_left = "/ for commands · ↑↓ history · tab to complete · esc to interrupt"
-        hint_right = "ctrl+l clear · ctrl+c quit"
+        hint_right = "ctrl+x E-STOP · ctrl+l clear · ctrl+c quit"
+        if is_armed():
+            badge = "[#000000 on #d07d50] ● ARMED [/]"
+        else:
+            badge = "[#ffffff on #707070] ● DISARMED [/]"
         return (
-            f"  [{C_DIM}]{self.status}[/{C_DIM}]\n"
+            f"  {badge}  [{C_DIM}]{self.status}[/{C_DIM}]\n"
             f"  [{C_DIM}]{hint_left}[/{C_DIM}]"
             f"   [{C_DIM}]{hint_right}[/{C_DIM}]"
         )
