@@ -17,7 +17,7 @@
 
 - 🤖 **本地 LLM**：透過 Ollama 串接，無需雲端、保護隱私（預設 `qwen3.6:35b`）
 - 🖥️ **Claude Code 風 TUI**：圓角邊框、橘色 focus、spinner、自動置中 welcome panel
-- 🛡️ **安全層**：arm/disarm 安全閂（預設上鎖）、`Ctrl+X` 緊急停止、速度夾限、移動限時 watchdog、關閉 fail-safe
+- 🛡️ **安全層**：arm/disarm 安全閂（預設上鎖）、`Ctrl+X` 緊急停止、速度夾限、移動限時 watchdog、關閉 fail-safe、萬用發佈人工批准閘門
 - 🚗 **車輛控制**：`/drive forward|back|left|right|stop` 直接發 `geometry_msgs/Twist` 到 `/cmd_vel`
 - 📍 **座標導航**：`/goto 應科大樓` 從 `locations.yaml` 查 `{x, y}` JSON 發給 Isaac Sim
 - 📡 **ROS2 整合（rclpy）**：單例 Node + executor，`/ros topics|echo|type|pub` 自動推斷訊息型別
@@ -127,7 +127,8 @@ renagent connect
 | `/ros topics` | 列出目前 ROS2 topics |
 | `/ros echo <topic>` | 單次讀取指定 topic |
 | `/ros type <topic>` | 顯示 topic 的訊息型別與欄位 |
-| `/ros pub <topic> <json>` | 發布 JSON 到指定 topic（自動推斷型別） |
+| `/ros pub <topic> <json>` | 萬用發佈：手打直送（自動推斷型別）；**LLM 觸發則需先 `/approve`** |
+| `/approve` / `/reject` | 批准 / 取消待處理的高風險動作（如 LLM 觸發的萬用發佈） |
 | `/arm` / `/disarm` | 解鎖 / 上鎖車輛（移動類指令須先 `/arm`） |
 | `/estop`（alias `/stop`） | 緊急停止：立即送 0 速度並上鎖 |
 | `/drive forward\|back\|left\|right\|stop [speed] [duration]` | 控制車子（速度夾限、移動限時、須先 `/arm`） |
@@ -218,6 +219,7 @@ ren-agent/
 | v0.3.3 | ✅ 完成 | 成熟度自評表（MATURITY.md）、安全優先 ROADMAP 重規劃、安全須知 |
 | v0.4.0 | ✅ 完成 | **安全層**：arm/disarm 安全閂、E-stop、速度夾限、移動限時 watchdog、關閉 fail-safe |
 | v0.4.1 | ✅ 完成 | TUI：Welcome 面板改版（Claude Code 風）、Slash 選單可捲動 |
+| v0.4.2 | ✅ 完成 | 萬用發佈人工批准閘門（批准卡片按鈕 + `/approve`、`/reject`）、Slash 選單常用置頂、`/drive` 自動停防 GC 與可取消 |
 | v0.5.0 | 📡 規劃中 | 可靠性 + 可觀測性 + Isaac Sim SIL（狀態機、動作回報、audit trail、`/odom`） |
 | v0.6.0 | 🔐 規劃中 | Security、部署、CI/CD（存取控制、網路隔離、GitHub Actions） |
 | v0.7.0 | 🚗 規劃中 | 多車協調、SLAM hook、telemetry |

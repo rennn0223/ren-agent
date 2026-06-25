@@ -70,3 +70,13 @@ def test_all_commands_unique() -> None:
     register_builtin_commands()
     names = [c.name for c in all_commands()]
     assert len(names) == len(set(names))
+
+
+def test_common_commands_sorted_before_meta() -> None:
+    """常用指令（arm/drive…）應排在系統指令（help/clear/bye）之前，而非字母序。"""
+    register_builtin_commands()
+    names = [c.name for c in all_commands()]
+    assert names[0] == "arm"
+    for common in ("arm", "drive", "estop", "goto", "approve"):
+        for meta in ("help", "clear", "bye"):
+            assert names.index(common) < names.index(meta), (common, meta)

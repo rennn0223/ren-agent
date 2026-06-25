@@ -47,6 +47,22 @@ def _clamp(value: float, limit: float) -> float:
     return max(-limit, min(value, limit))
 
 
+# 目前唯一的 watchdog 自動停 task。
+# 持有這個參考有兩個作用：
+#   1. 防止 asyncio 把 fire-and-forget task 提早 GC（官方文件警告）→ 確保自動停會發生。
+#   2. 下一個移動指令 / E-stop 進來時可以取消舊的，避免舊的 stop 打斷新動作。
+_auto_stop_task: "asyncio.Task | None" = None
+
+
+def cancel_pending_auto_stop() -> None:
+    """取消目前排程中的自動停（新指令或 E-stop 時呼叫）。"""
+    global _auto_stop_task
+    t = _auto_stop_task
+    if t is not None and not t.done():
+        t.cancel()
+    _auto_stop_task = None
+
+
 async def drive_skill(
     direction: str,
     speed: float = 0.3,
@@ -99,6 +115,9 @@ async def drive_skill(
     except Exception as e:  # noqa: BLE001
         return f"發布 Twist 失敗：{e}"
 
+    # 新指令來了，先取消上一個排程中的自動停（避免舊的 stop 打斷這次動作）
+    cancel_pending_auto_stop()
+
     # 已經是 stop → 直接結束
     if direction == "stop":
         return f"已送出 stop 到 {topic}"
@@ -113,8 +132,12 @@ async def drive_skill(
         duration_capped = True
 
     # ── 5. 排程 duration 秒後的自動 stop ──
-    # 用 fire-and-forget 的 background task，呼叫端不用 await
+    # 用 background task；參考存進 _auto_stop_task（防 GC + 可被取消）。
+    global _auto_stop_task
+
     async def _auto_stop() -> None:
+        # 被新指令 / E-stop 取消時，CancelledError 會從 sleep 拋出並讓 task
+        # 進入 cancelled 狀態（不在這裡吞掉，才能正確反映取消）。
         await asyncio.sleep(duration)
         try:
             await asyncio.to_thread(ros.publish, topic, type_str, _twist(0.0, 0.0))
@@ -122,7 +145,7 @@ async def drive_skill(
             # 自動 stop 失敗就吞掉（已經有人下新指令的話原本就不需要再 stop）
             pass
 
-    asyncio.create_task(_auto_stop())
+    _auto_stop_task = asyncio.create_task(_auto_stop())
     msg = (
         f"已驅動 {direction}（linear={linear:.2f}, angular={angular:.2f}），"
         f"{duration:.1f}s 後自動 stop。"

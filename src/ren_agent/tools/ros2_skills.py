@@ -73,11 +73,29 @@ async def ros_publish_skill(
     topic: str,
     payload: str,
     type_str: str | None = None,
+    _approved: bool = False,
 ) -> str:
     """
-    發布 JSON payload 到 topic。
+    發布 JSON payload 到 topic（萬用發佈，本專案亮點）。
     若沒給 type_str，會自動從 ROS graph 推斷（要有現存 publisher/subscriber）。
+
+    安全閘門：這是能對「任何 topic、任何型別」發任意內容的強力工具，會繞過
+    drive 的速度夾限 / arm 閂等保護。因此 **LLM 觸發時一律需人工批准**
+    （登記成待批准動作，由使用者 /approve 才執行）。`_approved` 不在 tool
+    schema 裡，LLM 設不到；使用者手打 `/ros pub` 時則由斜線指令帶 _approved=True
+    直送（人已經是把關者）。
     """
+    if not _approved:
+        from ren_agent.core.approvals import request_approval
+
+        async def _run() -> str:
+            return await ros_publish_skill(
+                topic, payload, type_str=type_str, _approved=True
+            )
+
+        target = f"{topic}" + (f"（{type_str}）" if type_str else "")
+        return request_approval(f"發布到 {target}：{payload}", _run)
+
     ros, err = await _ros_or_err()
     if not ros:
         return f"ROS2 不可用：{err}"
