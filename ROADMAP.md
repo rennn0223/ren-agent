@@ -94,15 +94,17 @@
 
 > 對應 MATURITY 第一層。這是從「Demo / 工具」走向「可控實體車」最關鍵的一步。
 
-- [ ] **執行層速度 / 加速度上限夾限**：`/drive` 與所有移動 skill 在發 `Twist` 前 clamp（投報率最高，先做）
-- [ ] **緊急停止 E-stop**：鍵盤快捷鍵 + E-stop topic，任何狀態下立即停車，優先級最高
-- [ ] **`/cmd_vel` watchdog**：控制訊號超時（例如 >300ms 未更新）自動發 stop
-- [ ] **失效安全 fail-safe**：LLM 當掉 / 連線斷 → 預設停車，而非維持上一動作
-- [ ] **LLM↔執行層驗證閘門**：限制可執行動作集 + 參數範圍檢查（含速度）
-- [ ] **危險 / 不可逆動作需人工確認**：讓 plan / auto-accept 模式真正攔截執行
-- [ ] **地理圍欄 geofence / 工作區邊界**：超出允許範圍拒絕移動
-- [ ] **安全邏輯自動化測試**：超速被擋、超時停車、E-stop 生效都要有測試
-- [ ] **安全參數外部化**：`max_speed`、watchdog timeout、geofence 範圍寫進設定檔
+- [x] **執行層速度上限夾限**：`/drive` 在發 `Twist` 前把線/角速度 clamp 到 `SafetyConfig` 上限並透明回報
+- [x] **緊急停止 E-stop**：Ctrl+X / `/estop` / 自然語言，立即送 0 速度 + E-stop 訊號，取消串流並 latch 上鎖
+- [x] **移動限時 watchdog**：`max_drive_duration` 上限，不允許無限驅動，車一定在上限內自動停
+- [x] **失效安全 fail-safe**：TUI 關閉時 best-effort 送停車並上鎖；agent 卡住由 watchdog 兜底
+- [x] **arm / disarm 安全閂**：車輛預設上鎖，移動類 skill 未 `/arm` 一律拒絕（擋斜線 + LLM tool-call 兩路）；狀態列常駐 ARMED/DISARMED 徽章
+- [x] **LLM↔執行層驗證閘門**：封閉動作集（已註冊 tool schema）+ 各 skill 參數驗證 + 速度夾限 + arm 閂
+- [x] **安全邏輯自動化測試**：速度夾限 / watchdog / E-stop / arm 閂皆有測試
+- [x] **安全參數外部化**：`SafetyConfig`（max_linear/angular_speed、max_drive_duration、estop_topic）
+- [ ] **加速度（斜率）限制**：避免瞬間全速（⏳ 後續）
+- [ ] **接收端心跳超時停車**：>300ms 未更新自動停（⏳ 需 Sim/實車端配合）
+- [ ] **地理圍欄 geofence**：移至 v0.5（需要 `/odom` 車輛定位才有意義）
 
 ***
 
@@ -116,6 +118,7 @@
 - [ ] **重連 / 重試策略**：Ollama 或 ROS2 短暫中斷後自動恢復
 - [ ] **稽核軌跡 audit trail**：自然語言輸入 → LLM 決策 → 實際 ROS2 訊息全程可追溯、可回放
 - [ ] **TUI 即時車輛狀態**：subscribe `/odom` 顯示位置 / 速度
+- [ ] **地理圍欄 geofence**：有了 `/odom` 定位後，超出工作區邊界拒絕移動（自 v0.4.0 移入）
 - [ ] **Isaac Sim 串接**：Sim 端 subscriber 接 `/ren_agent/goal`
 - [ ] `locations.yaml` 改用 Isaac Sim 本地 frame（meter）
 - [ ] **SIL（模擬器在環）測試**：Sim 跑通「自然語言 → 移動 → 到達回報」完整流程

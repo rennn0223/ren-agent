@@ -30,6 +30,7 @@ from typing import Dict
 import yaml
 
 from ren_agent.core.config import get_config
+from ren_agent.core.safety_state import DISARMED_MSG, is_armed
 from ren_agent.core.skills import Skill, register_skill
 from ren_agent.tools.ros2_node import safe_get_ros2
 
@@ -63,6 +64,9 @@ def _resolve_location(query: str, locations: Dict[str, Dict[str, float]]) -> str
 
 async def goto_skill(name: str) -> str:
     """送出指定地點 → JSON {x, y} → Isaac Sim。"""
+    if not is_armed():
+        return DISARMED_MSG
+
     name = name.strip()
     locations = _load_locations()
     if name not in locations:
@@ -105,6 +109,9 @@ async def route_skill(start: str, goal: str) -> str:
       2. 發布 go_agent_route 指令到 command_topic（觸發同事那端跑路線）
       3. 把起點/終點座標印在對話欄位（給使用者確認）
     """
+    if not is_armed():
+        return DISARMED_MSG
+
     locations = _load_locations()
     start_name = _resolve_location(start, locations)
     goal_name = _resolve_location(goal, locations)

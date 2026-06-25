@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 
 from ren_agent.core.config import get_config
+from ren_agent.core.safety_state import DISARMED_MSG, is_armed
 from ren_agent.core.skills import Skill, register_skill
 from ren_agent.tools.ros2_node import safe_get_ros2
 
@@ -40,6 +41,12 @@ def _twist(linear: float, angular: float) -> dict:
     }
 
 
+def _clamp(value: float, limit: float) -> float:
+    """把 value 夾限在 [-limit, limit]。limit 視為非負。"""
+    limit = abs(limit)
+    return max(-limit, min(value, limit))
+
+
 async def drive_skill(
     direction: str,
     speed: float = 0.3,
@@ -49,13 +56,19 @@ async def drive_skill(
     控制車子。
 
     direction: forward / back / left / right / stop
-    speed:     線速度（m/s）或角速度（rad/s）的大小，預設 0.3（安全速度）
-    duration:  幾秒後自動 stop。<= 0 表示不自動 stop（停在那個速度）。
+    speed:     線速度（m/s）或角速度（rad/s）的大小，預設 0.3（安全速度）；
+               發出前會被夾限到 SafetyConfig 的上限。
+    duration:  幾秒後自動 stop。<= 0 或超過 max_drive_duration 會被夾到上限
+               （watchdog：不允許無限驅動，車一定會在上限內自動停）。
     """
     # ── 1. 參數驗證 ──
     direction = direction.lower().strip()
     if direction not in _DIRECTIONS:
         return f"未知方向：{direction}。可用：{', '.join(_DIRECTIONS)}"
+
+    # ── 1.5 安全閂：未解鎖時拒絕移動（stop 永遠允許）──
+    if direction != "stop" and not is_armed():
+        return DISARMED_MSG
 
     # ── 2. 取 ROS2 manager ──
     ros, err = safe_get_ros2()
@@ -66,10 +79,17 @@ async def drive_skill(
     topic = cfg.ros2.cmd_vel_topic
     type_str = "geometry_msgs/msg/Twist"
 
-    # ── 3. 算 linear / angular ──
+    # ── 3. 算 linear / angular，並做執行層安全夾限 ──
+    # 安全閘門：不論 speed 是使用者打的還是 LLM 給的，發出去前一律夾限到設定上限，
+    # 避免「speed=99」這種失控指令真的送到車上。
     lin_dir, ang_dir = _DIRECTIONS[direction]
-    linear = lin_dir * speed
-    angular = ang_dir * speed
+    raw_linear = lin_dir * speed
+    raw_angular = ang_dir * speed
+
+    safety = cfg.safety
+    linear = _clamp(raw_linear, safety.max_linear_speed)
+    angular = _clamp(raw_angular, safety.max_angular_speed)
+    was_clamped = (linear != raw_linear) or (angular != raw_angular)
 
     # ── 4. 發第一筆 Twist ──
     # publish 是同步操作（rclpy publisher.publish 不是 async），
@@ -79,9 +99,18 @@ async def drive_skill(
     except Exception as e:  # noqa: BLE001
         return f"發布 Twist 失敗：{e}"
 
-    # 已經是 stop 或不需要自動 stop → 直接結束
-    if direction == "stop" or duration <= 0:
+    # 已經是 stop → 直接結束
+    if direction == "stop":
         return f"已送出 stop 到 {topic}"
+
+    # ── 4.5 watchdog：單次移動時間有硬上限，不允許無限驅動 ──
+    # duration<=0（原本是「不自動停」）或超過上限，一律夾到 max_drive_duration，
+    # 確保車子一定會在上限內自動停。
+    max_dur = safety.max_drive_duration
+    duration_capped = False
+    if duration <= 0 or duration > max_dur:
+        duration = max_dur
+        duration_capped = True
 
     # ── 5. 排程 duration 秒後的自動 stop ──
     # 用 fire-and-forget 的 background task，呼叫端不用 await
@@ -94,10 +123,18 @@ async def drive_skill(
             pass
 
     asyncio.create_task(_auto_stop())
-    return (
+    msg = (
         f"已驅動 {direction}（linear={linear:.2f}, angular={angular:.2f}），"
         f"{duration:.1f}s 後自動 stop。"
     )
+    if was_clamped:
+        msg += (
+            f" ⚠️ 速度已夾限至安全上限"
+            f"（linear≤{safety.max_linear_speed}, angular≤{safety.max_angular_speed}）。"
+        )
+    if duration_capped:
+        msg += f" ⚠️ 移動時間已限制為 {max_dur:.1f}s（watchdog 上限）。"
+    return msg
 
 
 # ── Ollama tool schema（LLM 看到的描述）──────────────
@@ -119,7 +156,11 @@ _DRIVE_TOOL = {
                 },
                 "speed": {
                     "type": "number",
-                    "description": "Linear or angular magnitude. Default 0.3 (safe).",
+                    "description": (
+                        "Linear or angular magnitude. Default 0.3 (safe). "
+                        "Values are hard-clamped to the configured safety limits "
+                        "before being sent to the vehicle."
+                    ),
                 },
                 "duration": {
                     "type": "number",

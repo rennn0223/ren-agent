@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-06-25
+
+### Added（安全層）
+- **執行層速度夾限**：新增 `SafetyConfig`（`max_linear_speed` 預設 0.5 m/s、`max_angular_speed` 預設 1.0 rad/s）。`/drive` 發 `Twist` 前一律把線速度 / 角速度硬夾限到上限，避免 LLM 或使用者傳入失控速度；被夾限時於回覆中透明標註。
+- **緊急停止 E-stop**：`Ctrl+X` 快捷鍵 / `/estop`（alias `/stop`）/ 自然語言「緊急停止、停下來」→ 立即送 0 速度到 `cmd_vel`，並 best-effort 發 `std_msgs/Bool` True 到 `safety.estop_topic`（預設 `/ren_agent/estop`）；同時取消進行中的 LLM 串流與佇列。新增 `tools/safety.py`。
+- **移動時間 watchdog**：新增 `SafetyConfig.max_drive_duration`（預設 5.0s）。`/drive` 不再允許「無限驅動」，`duration<=0` 或超過上限都夾到上限，確保車一定會在上限內自動停。
+- **關閉 fail-safe**：TUI 關閉（`on_unmount`）時 best-effort 送一筆停車（`safety.stop_now`），避免離開後車維持最後速度。
+- **arm / disarm 安全閂**：新增 `core/safety_state.py`。車輛預設上鎖，移動類 skill（drive/goto/route/agent_command）未 `/arm` 一律拒絕（同時擋斜線指令與 LLM tool-call）。`/arm`、`/disarm` 指令；E-stop 與關閉 fail-safe 會 latch 上鎖。狀態列常駐 `● ARMED` / `● DISARMED` 徽章。
+
 ## [0.3.3] - 2026-06-25
 
 ### Docs
