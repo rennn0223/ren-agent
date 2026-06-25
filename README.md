@@ -187,7 +187,8 @@ ren-agent/
 ├── scripts/
 │   └── renagent                 # 一鍵 connect 啟動腳本
 ├── tests/                       # commands / config / ollama agent
-├── ROADMAP.md                   # 開發路線圖
+├── ROADMAP.md                   # 開發路線圖（安全優先 → v1.0.0）
+├── MATURITY.md                  # 專案成熟度自評表（可打勾）
 ├── CHANGELOG.md
 ├── README.md
 └── pyproject.toml
@@ -197,7 +198,8 @@ ren-agent/
 
 ## 🗺️ 開發路線圖
 
-詳見 [ROADMAP.md](./ROADMAP.md)
+詳見 [ROADMAP.md](./ROADMAP.md)；專案成熟度自評見 [MATURITY.md](./MATURITY.md)。
+自 v0.4.0 起依**安全優先**順序推進（安全 > 可靠 > 可測試 > 模塊化 > 可維護 > 好用）。
 
 | 版本 | 狀態 | 主要內容 |
 |---|---|---|
@@ -206,14 +208,22 @@ ren-agent/
 | v0.3.0 | ✅ 完成 | Skills / Commands 架構、一鍵啟動 |
 | v0.3.1 | ✅ 完成 | rclpy 化、`/drive` `/goto`、Ollama tool calling、Claude Code 風 TUI |
 | v0.3.2 | ✅ 完成 | `/route` 路線規劃、`/domain` 動態切換、`/agent` 指令、Markdown 渲染、置中 welcome |
-| v0.4.0 | 📋 規劃中 | Isaac Sim 串接驗證、本地座標 frame、locations 編輯介面 |
-| v0.5.0 | 📋 規劃中 | 多車協調、SLAM hook、安全/診斷 |
+| v0.3.3 | ✅ 完成 | 成熟度自評表（MATURITY.md）、安全優先 ROADMAP 重規劃、安全須知 |
+| v0.4.0 | 🛡️ 規劃中 | **安全層**：E-stop、速度夾限、watchdog、fail-safe、安全測試 |
+| v0.5.0 | 📡 規劃中 | 可靠性 + 可觀測性 + Isaac Sim SIL（狀態機、動作回報、audit trail、`/odom`） |
+| v0.6.0 | 🔐 規劃中 | Security、部署、CI/CD（存取控制、網路隔離、GitHub Actions） |
+| v0.7.0 | 🚗 規劃中 | 多車協調、SLAM hook、telemetry |
+| v1.0.0 | 🏁 目標 | 可上線：安全全綠 + SIL/實車驗證 + Security + CI/CD + 文件齊備 |
+
+> ⚠️ **安全須知**：目前（v0.3.2）尚未實作緊急停止、速度夾限、看門狗等安全機制，
+> **請僅在模擬器或無人安全環境中使用，切勿直接控制載人 / 可傷人的實體車輛。**
+> 安全層預計於 v0.4.0 完成，詳見 [MATURITY.md](./MATURITY.md)。
 
 ***
 
 ## 🤝 協作開發
 
-目前建議以 `master` 為主線，功能先在 feature branch 開發，等 v0.3.0 穩定後再集中 compare / PR。
+以 `master` 為主線，功能先在 feature branch 開發，成熟後開 PR 合併。
 
 ```text
 feature/xxx  ->  master
