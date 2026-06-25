@@ -216,8 +216,17 @@ class Ros2Manager:
 
     # ── 生命週期 ─────────────────────────────────────
     def shutdown(self) -> None:
-        """目前 TUI 不主動呼叫，靠 process 退出時 daemon thread 自然死。"""
+        """
+        乾淨關閉：先停 spin thread（join），再拆 executor / node。
+
+        順序很重要：若不先 join，spin_once 可能正在跑，與 destroy_node
+        競爭，導致底層 DDS 的 C++ thread 在解構時還 joinable →
+        「terminate called without an active exception」。
+        """
         self._shutdown.set()
+        t = getattr(self, "_thread", None)
+        if t is not None and t.is_alive() and t is not threading.current_thread():
+            t.join(timeout=1.5)
         try:
             self._executor.shutdown()
         except Exception:
@@ -244,6 +253,32 @@ def safe_get_ros2() -> tuple[Ros2Manager | None, str | None]:
         return get_ros2(), None
     except Ros2Unavailable as e:
         return None, str(e)
+
+
+def shutdown_ros2() -> None:
+    """
+    程式結束時呼叫：乾淨關閉單例 node + rclpy context。
+
+    沒有這步的話，daemon spin thread + 未關閉的 DDS context 會在 interpreter
+    結束時被亂序解構，印出「terminate called without an active exception」。
+    全程吞例外——關閉流程不該因任何錯誤再炸一次。
+    """
+    global _instance
+    with _lock:
+        inst = _instance
+        _instance = None
+    if inst is not None:
+        try:
+            inst.shutdown()
+        except Exception:
+            pass
+    try:
+        import rclpy  # type: ignore[import-not-found]
+
+        if rclpy.ok():
+            rclpy.shutdown()
+    except Exception:
+        pass
 
 
 def reinit_ros2(domain_id: int | None = None, rmw: str | None = None) -> Ros2Manager:
