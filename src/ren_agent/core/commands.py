@@ -166,6 +166,11 @@ async def _cmd_agent(ctx: CommandContext, args: str) -> None:
     await ctx.run_skill("agent_command", cmd=cmd)
 
 
+async def _cmd_estop(ctx: CommandContext, args: str) -> None:
+    """/estop — 緊急停止車輛（立即送 0 速度）。"""
+    await ctx.run_skill("estop")
+
+
 async def _cmd_route(ctx: CommandContext, args: str) -> None:
     """/route <起點> <終點> — 規劃路線、發布 go_agent_route 並印出座標。"""
     parts = args.split()
@@ -213,6 +218,7 @@ def register_builtin_commands() -> None:
     register_command(SlashCommand("ros-type", [], "查詢指定 topic 的訊息型別", _cmd_ros_type))
     register_command(SlashCommand("ros-pub", [], "發布 JSON 到 topic（自動推斷型別）", _cmd_ros_pub))
     register_command(SlashCommand("drive", [], "控制車子：forward/back/left/right/stop", _cmd_drive))
+    register_command(SlashCommand("estop", ["stop"], "緊急停止車輛（立即送 0 速度）", _cmd_estop))
     register_command(SlashCommand("goto", [], "送出地點座標給 Isaac Sim", _cmd_goto))
     register_command(SlashCommand("domain", [], "切換 ROS_DOMAIN_ID，例如 /domain 30", _cmd_domain))
     register_command(SlashCommand("agent", [], "發指令給 AI agent，例如 /agent go_agent_route", _cmd_agent))

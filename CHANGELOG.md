@@ -9,6 +9,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added（安全層 v0.4.0 進行中）
 - **執行層速度夾限**：新增 `SafetyConfig`（`max_linear_speed` 預設 0.5 m/s、`max_angular_speed` 預設 1.0 rad/s）。`/drive` 發 `Twist` 前一律把線速度 / 角速度硬夾限到上限，避免 LLM 或使用者傳入失控速度；被夾限時於回覆中透明標註。
+- **緊急停止 E-stop**：`Ctrl+X` 快捷鍵 / `/estop`（alias `/stop`）/ 自然語言「緊急停止、停下來」→ 立即送 0 速度到 `cmd_vel`，並 best-effort 發 `std_msgs/Bool` True 到 `safety.estop_topic`（預設 `/ren_agent/estop`）；同時取消進行中的 LLM 串流與佇列。新增 `tools/safety.py`。
 
 ## [0.3.3] - 2026-06-25
 

@@ -68,6 +68,7 @@ from ren_agent.core.skills import (
 from ren_agent.tools.drive import register_drive_skills
 from ren_agent.tools.goto import register_goto_skills
 from ren_agent.tools.ros2_skills import register_ros2_skills
+from ren_agent.tools.safety import register_safety_skills
 
 
 # ── Claude Code 配色 ──────────────────────────────────────
@@ -566,6 +567,7 @@ class RenAgentApp(App):
     # priority=True 表示優先攔截（不會被 Input 吃掉）
     BINDINGS = [
         Binding("ctrl+c", "quit", "離開", priority=True),
+        Binding("ctrl+x", "estop", "緊急停止 E-STOP", show=True, priority=True),
         Binding("ctrl+l", "clear_chat", "清空對話", show=True),
         Binding("ctrl+n", "new_session", "新對話", show=True),
         Binding("escape", "interrupt", "中斷思考", show=False, priority=True),
@@ -637,6 +639,7 @@ class RenAgentApp(App):
         register_ros2_skills()
         register_drive_skills()
         register_goto_skills()
+        register_safety_skills()
         # set_model 是 TUI-only skill（需要 self.agent，所以註冊在這裡）
         register_skill(
             Skill("set_model", "切換 Ollama 模型", self._set_model_skill)
@@ -1044,6 +1047,29 @@ class RenAgentApp(App):
         self._thinking = False
         self._set_thinking(False)
         self._update_queue_status()
+
+    def action_estop(self) -> None:
+        """Ctrl+X：緊急停止 — 取消所有思考/串流 + 立即送 0 速度。
+
+        E-stop 優先級最高：先 cancel_all 停掉 LLM 串流與佇列，
+        再用獨立 worker（不會被 cancel_all 波及，因為在其之後建立）送停車指令。
+        """
+        self.workers.cancel_all()
+        self._pending_queue.clear()
+        self._thinking = False
+        self._set_thinking(False)
+        self._update_queue_status()
+        self._chat().write_error("🛑 緊急停止 E-STOP — 送出停車指令中…")
+        self._run_estop()
+
+    @work(exclusive=False, group="estop")
+    async def _run_estop(self) -> None:
+        """獨立 worker 跑 estop skill，避免被一般思考佇列卡住。"""
+        try:
+            result = await core_run_skill("estop")
+        except Exception as e:  # noqa: BLE001
+            result = f"E-stop 失敗：{e}"
+        self._chat().write_error(result)
 
     # ── CommandContext 實作 ──────────────────────────────
     # 給 core.commands 的 handler 用；只暴露需要的 API，

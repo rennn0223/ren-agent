@@ -51,6 +51,8 @@ class SafetyConfig(BaseModel):
     max_linear_speed: float = 0.5
     # /drive 角速度上限（rad/s）。
     max_angular_speed: float = 1.0
+    # E-stop 訊號 topic（std_msgs/Bool）；空字串 = 不額外發訊號，只送 0 速度。
+    estop_topic: str = "/ren_agent/estop"
 
 
 # ── 頂層設定 ──────────────────────────────────────────

@@ -23,7 +23,7 @@
 
 > 這是車控專案跟一般軟體最大的差別，也是目前 ren-agent 最大的缺口。
 
-- [ ] **緊急停止 E-stop**：任何狀態下可立即停車，優先級高於一切指令（鍵盤快捷鍵 + topic）
+- [x] **緊急停止 E-stop**：Ctrl+X 快捷鍵 / `/estop` / 自然語言「緊急停止」→ 立即送 0 速度 + 發 E-stop 訊號（`estop_topic`），並取消進行中的 LLM 串流與佇列
 - [ ] **失效安全 fail-safe**：LLM 當掉 / 連線斷 / 收不到訊號 → 預設「停車」，而非維持上一動作
 - [ ] **看門狗 watchdog / 心跳**：`/cmd_vel` 超時（例如 >300ms 未更新）自動發 stop
 - [~] **速度 / 加速度上限夾限**：✅ 線速度 / 角速度已在執行層硬夾限（`SafetyConfig.max_linear_speed` / `max_angular_speed`，發 Twist 前 clamp 並透明回報）；⏳ 加速度（斜率）限制尚未做
