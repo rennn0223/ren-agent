@@ -113,6 +113,14 @@
 
 > 對應 MATURITY 第二、四層。
 
+### 🧹 v0.4.2 review 留下的待辦（已排入 v0.5）
+- [ ] **`route_skill` payload 帶起點/終點座標**（目前所有 `/route` 都送同一個 `{"cmd":"go_agent_route"}`，下游無法分辨不同路線）— 需要與同事的接收端對齊新 schema 後一起做
+- [ ] **approval gate 升級為 Skill 級宣告**：`Skill` 加 `requires_approval` 欄位，由 `run_skill` 統一在 LLM 路徑包 `request_approval`，取代目前只在 `ros_publish` 手寫的閘門（讓 `agent_command` 等高風險動作也能 opt-in）
+- [ ] **arm-check 收斂進 `run_skill`**：`Skill` 加 `requires_armed` 欄位，在 dispatch 層統一檢查，移除 `drive`/`goto`/`route`/`agent_command` 四處複製貼上的 `if not is_armed(): return DISARMED_MSG`
+- [ ] **Topic policy 在 `Ros2Manager.publish` 層做**：對 `cmd_vel` topic 一律套 Twist 夾限（目前在 `drive_skill` 跟 `ros_publish_skill` 分別做了一次），把安全閘門收到實際的 publish boundary
+- [ ] **未接線模組接上或移除**：`core/files.py`（`@` mention）、`core/context.py`（token 計數）目前有測試但 TUI 沒呼叫
+
+### 主線
 - [ ] **規則式風險分數分級**：approval-engine 從「萬用發佈強制批准」擴充為 Low/Medium/High 規則式風險分數（依 topic、`/depth` 障礙、`/odom` 移動中、近期 error log、模型信心等加權），決定直送 / 提案 / 強制批准
 - [ ] **車輛狀態機**：idle / moving / stopped / error，作為指令仲裁基礎
 - [ ] **動作完成回報**：`goto` / `route` 回報 reached / blocked / replanned

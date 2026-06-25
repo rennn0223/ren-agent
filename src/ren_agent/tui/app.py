@@ -768,10 +768,27 @@ class RenAgentApp(App):
 
         # 背景測 Ollama 連線（thread worker，不阻塞 mount）
         self.check_ollama()
+        # 背景暖 /cmd_vel publisher：避免 on_unmount 時才第一次建 publisher，
+        # DDS discovery 來不及做完就被 destroy，fail-safe 停車根本送不出去。
+        self._warm_ros_publishers()
         self._input().focus()
         self._refresh_focus_style()
         # 輪詢待批准狀態，有就彈出批准卡片（approval 由 widget 外部設定，輪詢最可靠）
         self.set_interval(0.4, self._refresh_approval_card)
+
+    @work(thread=True, exclusive=False, group="ros-warm")
+    def _warm_ros_publishers(self) -> None:
+        """在背景 thread 預建關鍵 publisher，讓 DDS 完成 discovery。
+        失敗（ROS2 未 source）就靜默跳過，TUI 不應該因此卡住。"""
+        try:
+            from ren_agent.tools.ros2_node import safe_get_ros2
+            ros, _err = safe_get_ros2()
+            if ros is None:
+                return
+            cfg = self.config
+            ros.warm_publisher(cfg.ros2.cmd_vel_topic, "geometry_msgs/msg/Twist")
+        except Exception:
+            pass
 
     def on_unmount(self) -> None:
         """關閉前：① fail-safe 送停車 ② 乾淨關閉 ROS2（避免 C++ std::terminate）。"""
@@ -978,9 +995,16 @@ class RenAgentApp(App):
 
         # ── 分流：/ 開頭 vs 一般訊息 ──
         if message.startswith("/"):
+            slash = self._slash_cmd(message)
             # /bye 系列：不進佇列，立刻處理
-            if self._slash_cmd(message) in ("bye", "exit", "quit"):
+            if slash in ("bye", "exit", "quit"):
                 await self.handle_slash_command(message)
+                return
+            # /estop、/stop：最高優先級，等同 Ctrl+X。
+            # 不能讓使用者打的緊急停止排在 LLM 思考佇列後面。
+            if slash in ("estop", "stop"):
+                self._chat().write_user(message)
+                self.action_estop()
                 return
             # 思考中：排隊
             if self._thinking:
@@ -1146,7 +1170,12 @@ class RenAgentApp(App):
             self._pending_queue.clear()
             self._update_queue_status()
 
-        await command.handler(ctx, args)
+        # handler 任何未捕捉的例外都不能把 Textual app 弄死（噴回 terminal）。
+        # 之前 `/drive forward for 2` 之類打錯參數會直接讓 TUI crash。
+        try:
+            await command.handler(ctx, args)
+        except Exception as e:  # noqa: BLE001
+            chat.write_system(f"指令執行錯誤：{type(e).__name__}: {e}")
         return True
 
     # ── 待批准卡片（批准按鈕）──────────────────────────────

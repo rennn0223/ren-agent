@@ -214,6 +214,18 @@ class Ros2Manager:
             lines.append(f"  {ftype} {name}")
         return "\n".join(lines)
 
+    def warm_publisher(self, topic: str, type_str: str) -> bool:
+        """
+        預先建立 publisher，讓 DDS 完成 discovery，避免「程式關閉時才第一次建
+        publisher，但 destroy_node 立刻發生，0 速度根本來不及送到 subscriber」
+        的 fail-safe 失靈問題。回傳是否成功建立（rclpy 不可用時靜默回 False）。
+        """
+        try:
+            self.get_publisher(topic, type_str)
+            return True
+        except Exception:
+            return False
+
     # ── 生命週期 ─────────────────────────────────────
     def shutdown(self) -> None:
         """
@@ -222,11 +234,22 @@ class Ros2Manager:
         順序很重要：若不先 join，spin_once 可能正在跑，與 destroy_node
         競爭，導致底層 DDS 的 C++ thread 在解構時還 joinable →
         「terminate called without an active exception」。
+
+        join 用較長 timeout（5s），逾時印出警告但仍會繼續拆除（拒絕拆除會
+        讓行程卡死，這比偶發 abort 更糟）。
         """
         self._shutdown.set()
         t = getattr(self, "_thread", None)
         if t is not None and t.is_alive() and t is not threading.current_thread():
-            t.join(timeout=1.5)
+            t.join(timeout=5.0)
+            if t.is_alive():
+                # 印到 stderr 而不是用 logging，避免依賴 logging 設定
+                import sys
+                print(
+                    "[ren-agent] warning: ROS2 spin thread did not finish within 5s; "
+                    "DDS teardown may race (terminate-called error possible).",
+                    file=sys.stderr,
+                )
         try:
             self._executor.shutdown()
         except Exception:

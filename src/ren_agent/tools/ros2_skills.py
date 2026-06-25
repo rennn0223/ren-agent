@@ -69,32 +69,65 @@ async def ros_type_skill(topic: str) -> str:
     return desc
 
 
+def _clamp_twist_in_place(data: dict, max_linear: float, max_angular: float) -> bool:
+    """
+    對 geometry_msgs/Twist 的 payload 做安全夾限（修改 data in-place）。
+    回傳是否真的有夾。
+    這是執行層的最後一道防線：即使 LLM 或 ros_publish 繞過 drive_skill，
+    送到 /cmd_vel 的 Twist 也不會超過 SafetyConfig 上限。
+    """
+    changed = False
+
+    def _do(section: str, key: str, limit: float) -> None:
+        nonlocal changed
+        sub = data.get(section)
+        if not isinstance(sub, dict):
+            return
+        v = sub.get(key)
+        if not isinstance(v, (int, float)):
+            return
+        clamped = max(-abs(limit), min(float(v), abs(limit)))
+        if clamped != v:
+            sub[key] = clamped
+            changed = True
+
+    _do("linear", "x", max_linear)
+    _do("linear", "y", max_linear)
+    _do("angular", "z", max_angular)
+    return changed
+
+
 async def ros_publish_skill(
     topic: str,
     payload: str,
     type_str: str | None = None,
-    _approved: bool = False,
 ) -> str:
     """
     發布 JSON payload 到 topic（萬用發佈，本專案亮點）。
     若沒給 type_str，會自動從 ROS graph 推斷（要有現存 publisher/subscriber）。
 
-    安全閘門：這是能對「任何 topic、任何型別」發任意內容的強力工具，會繞過
-    drive 的速度夾限 / arm 閂等保護。因此 **LLM 觸發時一律需人工批准**
-    （登記成待批准動作，由使用者 /approve 才執行）。`_approved` 不在 tool
-    schema 裡，LLM 設不到；使用者手打 `/ros pub` 時則由斜線指令帶 _approved=True
-    直送（人已經是把關者）。
-    """
-    if not _approved:
-        from ren_agent.core.approvals import request_approval
+    安全閘門：這是能對「任何 topic、任何型別」發任意內容的強力工具，
+    會繞過 drive 的方向解析等便利機制。因此：
+      1. LLM 觸發時一律需人工批准（登記成待批准動作，由使用者 /approve 才執行）
+      2. 未 arm 時拒絕（同 drive/goto/route，避免靜默繞過安全閂）
+      3. 對 /cmd_vel 的 Twist 仍套用 SafetyConfig 的速度夾限（最後一道防線）
 
+    人類授權判定改用 ContextVar（is_human_approved），不再用 `_approved` kwarg；
+    LLM 無法從 tool schema 看到也無法在 tool-call JSON 裡偽造。
+    """
+    from ren_agent.core.approvals import is_human_approved, request_approval
+
+    if not is_human_approved():
         async def _run() -> str:
-            return await ros_publish_skill(
-                topic, payload, type_str=type_str, _approved=True
-            )
+            return await ros_publish_skill(topic, payload, type_str=type_str)
 
         target = f"{topic}" + (f"（{type_str}）" if type_str else "")
         return request_approval(f"發布到 {target}：{payload}", _run)
+
+    # 未 arm 一律拒絕（與 drive/goto/route/agent_command 一致；
+    # 避免「approved 後就可以對 cmd_vel 任意發 Twist」的繞道）
+    if not is_armed():
+        return DISARMED_MSG
 
     ros, err = await _ros_or_err()
     if not ros:
@@ -115,12 +148,23 @@ async def ros_publish_skill(
     except json.JSONDecodeError as e:
         return f"payload 不是合法 JSON：{e}"
 
+    # ── Twist 夾限（最後一道防線）──
+    cfg = get_config()
+    clamped_note = ""
+    if "Twist" in type_str and topic == cfg.ros2.cmd_vel_topic:
+        safety = cfg.safety
+        if _clamp_twist_in_place(data, safety.max_linear_speed, safety.max_angular_speed):
+            clamped_note = (
+                f" ⚠️ Twist 已夾限至安全上限"
+                f"（linear≤{safety.max_linear_speed}, angular≤{safety.max_angular_speed}）。"
+            )
+
     # ── 發布 ──
     try:
         await asyncio.to_thread(ros.publish, topic, type_str, data)
     except Exception as e:  # noqa: BLE001
         return f"發布失敗：{e}"
-    return f"已發布到 {topic}（{type_str}）：{json.dumps(data, ensure_ascii=False)}"
+    return f"已發布到 {topic}（{type_str}）：{json.dumps(data, ensure_ascii=False)}{clamped_note}"
 
 
 async def set_domain_skill(domain_id: int | str, rmw: str | None = None) -> str:
