@@ -727,10 +727,15 @@ class RenAgentApp(App):
         self._refresh_focus_style()
 
     def on_unmount(self) -> None:
-        """關閉前 fail-safe：best-effort 送一筆停車，避免車維持最後速度繼續跑。"""
+        """關閉前：① fail-safe 送停車 ② 乾淨關閉 ROS2（避免 C++ std::terminate）。"""
         try:
             from ren_agent.tools.safety import stop_now
             stop_now()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            from ren_agent.tools.ros2_node import shutdown_ros2
+            shutdown_ros2()
         except Exception:  # noqa: BLE001
             pass
 

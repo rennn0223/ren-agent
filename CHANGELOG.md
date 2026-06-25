@@ -15,6 +15,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 - **Slash 指令選單可捲動**：原本只顯示視窗內前幾個指令、方向鍵看不到其餘；改為捲動視窗，`↑↓` 可瀏覽全部指令，並顯示位置指示（`↑↓ n/total`）。
 - 修正 `Panel(expand=False)` 重新量測會把 `no_wrap` 臘腸狗截頭的問題（改用 `expand=True` + 固定左欄寬）。
 
+### Fixed（ROS2）
+- **修正關閉時 `terminate called without an active exception`**：程式結束 / `/domain` 切換時未乾淨關閉 rclpy，導致底層 DDS C++ thread 被亂序解構。`Ros2Manager.shutdown()` 改為先 join spin thread 再拆 node；新增 `shutdown_ros2()` 關閉 rclpy context，TUI `on_unmount` 送完 fail-safe 停車後呼叫。
+
 ## [0.4.0] - 2026-06-25
 
 ### Added（安全層）
