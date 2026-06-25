@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added（安全層 v0.4.0 進行中）
+- **執行層速度夾限**：新增 `SafetyConfig`（`max_linear_speed` 預設 0.5 m/s、`max_angular_speed` 預設 1.0 rad/s）。`/drive` 發 `Twist` 前一律把線速度 / 角速度硬夾限到上限，避免 LLM 或使用者傳入失控速度；被夾限時於回覆中透明標註。
+
 ## [0.3.3] - 2026-06-25
 
 ### Docs

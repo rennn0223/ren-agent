@@ -40,6 +40,12 @@ def _twist(linear: float, angular: float) -> dict:
     }
 
 
+def _clamp(value: float, limit: float) -> float:
+    """把 value 夾限在 [-limit, limit]。limit 視為非負。"""
+    limit = abs(limit)
+    return max(-limit, min(value, limit))
+
+
 async def drive_skill(
     direction: str,
     speed: float = 0.3,
@@ -66,10 +72,17 @@ async def drive_skill(
     topic = cfg.ros2.cmd_vel_topic
     type_str = "geometry_msgs/msg/Twist"
 
-    # ── 3. 算 linear / angular ──
+    # ── 3. 算 linear / angular，並做執行層安全夾限 ──
+    # 安全閘門：不論 speed 是使用者打的還是 LLM 給的，發出去前一律夾限到設定上限，
+    # 避免「speed=99」這種失控指令真的送到車上。
     lin_dir, ang_dir = _DIRECTIONS[direction]
-    linear = lin_dir * speed
-    angular = ang_dir * speed
+    raw_linear = lin_dir * speed
+    raw_angular = ang_dir * speed
+
+    safety = cfg.safety
+    linear = _clamp(raw_linear, safety.max_linear_speed)
+    angular = _clamp(raw_angular, safety.max_angular_speed)
+    was_clamped = (linear != raw_linear) or (angular != raw_angular)
 
     # ── 4. 發第一筆 Twist ──
     # publish 是同步操作（rclpy publisher.publish 不是 async），
@@ -94,10 +107,16 @@ async def drive_skill(
             pass
 
     asyncio.create_task(_auto_stop())
-    return (
+    msg = (
         f"已驅動 {direction}（linear={linear:.2f}, angular={angular:.2f}），"
         f"{duration:.1f}s 後自動 stop。"
     )
+    if was_clamped:
+        msg += (
+            f" ⚠️ 速度已夾限至安全上限"
+            f"（linear≤{safety.max_linear_speed}, angular≤{safety.max_angular_speed}）。"
+        )
+    return msg
 
 
 # ── Ollama tool schema（LLM 看到的描述）──────────────
@@ -119,7 +138,11 @@ _DRIVE_TOOL = {
                 },
                 "speed": {
                     "type": "number",
-                    "description": "Linear or angular magnitude. Default 0.3 (safe).",
+                    "description": (
+                        "Linear or angular magnitude. Default 0.3 (safe). "
+                        "Values are hard-clamped to the configured safety limits "
+                        "before being sent to the vehicle."
+                    ),
                 },
                 "duration": {
                     "type": "number",

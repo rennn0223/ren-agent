@@ -45,11 +45,20 @@ class Ros2Config(BaseModel):
     rmw_implementation: str | None = None
 
 
+# ── 安全子設定（執行層硬限制，LLM 再怎麼幻覺也突破不了）──
+class SafetyConfig(BaseModel):
+    # /drive 線速度上限（m/s）；發 Twist 前一律夾限到 ±此值。
+    max_linear_speed: float = 0.5
+    # /drive 角速度上限（rad/s）。
+    max_angular_speed: float = 1.0
+
+
 # ── 頂層設定 ──────────────────────────────────────────
 class AppConfig(BaseModel):
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
     ros2: Ros2Config = Field(default_factory=Ros2Config)
+    safety: SafetyConfig = Field(default_factory=SafetyConfig)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "AppConfig":
