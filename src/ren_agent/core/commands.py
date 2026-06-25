@@ -143,13 +143,18 @@ async def _cmd_ros_type(ctx: CommandContext, args: str) -> None:
 
 async def _cmd_ros_pub(ctx: CommandContext, args: str) -> None:
     """/ros pub <topic> <json_payload> — 自動推斷型別、填欄位、發布。"""
+    from ren_agent.core.approvals import mark_human_approved
+
     parts = args.split(maxsplit=1)
     if len(parts) < 2:
         ctx.write_system('用法：/ros pub <topic> <json>，例如 /ros pub /chatter {"data":"hi"}')
         return
     topic, payload = parts
-    # 手打 /ros pub：人已經是把關者，直送（_approved=True 不在 LLM tool schema 裡）
-    await ctx.run_skill("ros_publish", topic=topic, payload=payload, _approved=True)
+    # 手打 /ros pub：人已經是把關者，當前 async context 標記為已授權；
+    # ContextVar 會沿著 await 鏈傳給 ros_publish_skill，LLM 路徑沒有這層
+    # 標記就會被擋下走人工批准流程。
+    mark_human_approved()
+    await ctx.run_skill("ros_publish", topic=topic, payload=payload)
 
 
 async def _cmd_domain(ctx: CommandContext, args: str) -> None:
@@ -227,9 +232,82 @@ async def _cmd_drive(ctx: CommandContext, args: str) -> None:
         return
     direction = parts[0].lower()
     # 沒給就用預設：0.3 m/s, 1 秒
-    speed = float(parts[1]) if len(parts) > 1 else 0.3
-    duration = float(parts[2]) if len(parts) > 2 else 1.0
+    # 解析失敗時友善提示，不要把 ValueError 噴到 Textual 把 TUI 弄死。
+    try:
+        speed = float(parts[1]) if len(parts) > 1 else 0.3
+    except ValueError:
+        ctx.write_system(
+            f"speed 必須是數字，收到：{parts[1]!r}。"
+            f"用法：/drive {direction} [speed] [duration_sec]"
+        )
+        return
+    try:
+        duration = float(parts[2]) if len(parts) > 2 else 1.0
+    except ValueError:
+        ctx.write_system(
+            f"duration 必須是數字（秒），收到：{parts[2]!r}。"
+            f"用法：/drive {direction} {parts[1]} [duration_sec]"
+        )
+        return
     await ctx.run_skill("drive", direction=direction, speed=speed, duration=duration)
+
+
+_SAFETY_FIELDS = {
+    "max-speed": ("max_linear_speed", "m/s"),
+    "max-angular": ("max_angular_speed", "rad/s"),
+    "max-time": ("max_drive_duration", "秒"),
+}
+
+
+async def _cmd_safety(ctx: CommandContext, args: str) -> None:
+    """
+    /safety show                  — 顯示目前安全上限
+    /safety max-speed <m/s>       — 線速度上限（夾限 /drive 線速度）
+    /safety max-angular <rad/s>   — 角速度上限
+    /safety max-time <秒>          — 單次移動最長秒數（watchdog 上限）
+    """
+    from ren_agent.core.config import get_config
+
+    cfg = get_config()
+    safety = cfg.safety
+    parts = args.split()
+
+    # 沒參數或 show → 直接列目前值
+    if not parts or parts[0].lower() == "show":
+        ctx.write_system(
+            "目前安全上限：\n"
+            f"  max-speed   = {safety.max_linear_speed} m/s（線速度）\n"
+            f"  max-angular = {safety.max_angular_speed} rad/s（角速度）\n"
+            f"  max-time    = {safety.max_drive_duration} 秒（單次移動最長時間）\n"
+            "用法：/safety <max-speed|max-angular|max-time> <值>"
+        )
+        return
+
+    key = parts[0].lower()
+    if key not in _SAFETY_FIELDS:
+        ctx.write_system(
+            f"未知欄位：{key}。可用：{', '.join(_SAFETY_FIELDS)}（或 show）"
+        )
+        return
+
+    if len(parts) < 2:
+        ctx.write_system(f"用法：/safety {key} <值>")
+        return
+
+    try:
+        value = float(parts[1])
+    except ValueError:
+        ctx.write_system(f"值必須是數字，收到：{parts[1]!r}")
+        return
+
+    if not (value > 0):
+        ctx.write_system(f"值必須 > 0，收到：{value}")
+        return
+
+    field_name, unit = _SAFETY_FIELDS[key]
+    old = getattr(safety, field_name)
+    setattr(safety, field_name, value)
+    ctx.write_system(f"已更新 {key}：{old} → {value} {unit}")
 
 
 async def _cmd_goto(ctx: CommandContext, args: str) -> None:
@@ -270,8 +348,9 @@ def register_builtin_commands() -> None:
     register_command(SlashCommand("ros-type", [], "查詢指定 topic 的訊息型別", _cmd_ros_type, order=42))
     register_command(SlashCommand("ros-pub", [], "發布 JSON 到 topic（自動推斷型別）", _cmd_ros_pub, order=43))
     # ── 50：設定 ──
-    register_command(SlashCommand("domain", [], "切換 ROS_DOMAIN_ID，例如 /domain 30", _cmd_domain, order=50))
-    register_command(SlashCommand("model", [], "切換模型，例如 /model qwen3:8b", _cmd_model, order=51))
+    register_command(SlashCommand("safety", [], "查看 / 調整安全上限（max-speed / max-time）", _cmd_safety, order=50))
+    register_command(SlashCommand("domain", [], "切換 ROS_DOMAIN_ID，例如 /domain 30", _cmd_domain, order=51))
+    register_command(SlashCommand("model", [], "切換模型，例如 /model qwen3:8b", _cmd_model, order=52))
     # ── 60：系統 / 會話 ──
     register_command(SlashCommand("help", [], "顯示可用斜線指令列表", _cmd_help, order=60))
     register_command(SlashCommand("clear", [], "清空對話記錄", _cmd_clear, order=61))

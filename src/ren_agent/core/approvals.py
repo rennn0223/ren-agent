@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import contextvars
 import threading
 from dataclasses import dataclass
 from typing import Awaitable, Callable
@@ -30,14 +31,41 @@ class PendingAction:
 _lock = threading.Lock()
 _pending: PendingAction | None = None
 
+# 「目前的 async 呼叫已被人類授權」旗標。用 ContextVar 而不是 kwarg：
+# - slash 指令 handler 進入時 set，呼叫 skill 時自然繼承到下游
+# - LLM tool-call 路徑不會 set，LLM 也沒辦法從 tool schema 偽造這個欄位
+# - 比 `_approved=True` kwarg 安全：run_skill 是 **kwargs 直送，
+#   LLM 如果在 tool-call JSON 裡塞 _approved 就會被傳進去
+_human_approved: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "ren_agent_human_approved", default=False
+)
+
+
+def is_human_approved() -> bool:
+    """當前 async context 是否帶有人類授權旗標。"""
+    return _human_approved.get()
+
+
+def mark_human_approved() -> None:
+    """
+    標記「當前 async context 是人類發起的、已授權」。
+    斜線指令 handler 與 `/approve` 走這條，LLM tool-call 路徑不呼叫。
+    """
+    _human_approved.set(True)
+
 
 def request_approval(description: str, run: RunFunc) -> str:
     """
-    登記一個待批准動作，回傳給使用者看的提示字串。
-    後到的請求會覆蓋先前未處理的（只保留最新一個）。
+    登記一個待批准動作。若已經有待批准動作，新請求會被拒絕（避免靜默覆蓋）。
     """
     global _pending
     with _lock:
+        if _pending is not None:
+            return (
+                f"⚠️ 已有一個待批准動作未處理（{_pending.description}）。\n"
+                f"   請先 /approve 或 /reject，再送出新的動作。\n"
+                f"   被拒絕的新動作：{description}"
+            )
         _pending = PendingAction(description, run)
     return (
         f"⚠️ 此動作需人工批准：{description}\n"
@@ -51,8 +79,9 @@ def has_pending() -> bool:
 
 
 def pending_description() -> str | None:
-    """待批准動作的描述（沒有則 None）。"""
-    return _pending.description if _pending else None
+    """待批准動作的描述（沒有則 None）。一次性 snapshot，避免 TOCTOU。"""
+    p = _pending
+    return p.description if p is not None else None
 
 
 async def approve() -> str:
@@ -63,6 +92,8 @@ async def approve() -> str:
         _pending = None
     if action is None:
         return "目前沒有待批准的動作。"
+    # 執行階段已經是「人類授權」context；下游 skill 看到 is_human_approved()=True
+    mark_human_approved()
     return await action.run()
 
 

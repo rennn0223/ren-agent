@@ -14,6 +14,7 @@ drive skill — 用 geometry_msgs/Twist 控制車子前後左右。
 from __future__ import annotations
 
 import asyncio
+import math
 
 from ren_agent.core.config import get_config
 from ren_agent.core.safety_state import DISARMED_MSG, is_armed
@@ -86,6 +87,12 @@ async def drive_skill(
     if direction != "stop" and not is_armed():
         return DISARMED_MSG
 
+    # ── 1.6 數值衛兵：NaN/Inf 直接拒絕，避免穿過 _clamp 變成 NaN Twist 出車。
+    # 負 speed 統一改成正值（方向已由 direction 表達，speed 視為 magnitude）。
+    if not math.isfinite(speed):
+        return f"speed 必須是有限數值，收到：{speed!r}"
+    speed = abs(speed)
+
     # ── 2. 取 ROS2 manager ──
     ros, err = safe_get_ros2()
     if not ros:
@@ -107,6 +114,13 @@ async def drive_skill(
     angular = _clamp(raw_angular, safety.max_angular_speed)
     was_clamped = (linear != raw_linear) or (angular != raw_angular)
 
+    # ── 3.5 先取消上一個排程中的自動停 ──
+    # 順序很重要：必須在 publish 新 Twist 之前 cancel，否則
+    # 1) 我們會 await asyncio.to_thread，讓出 event loop，
+    # 2) 舊 auto_stop 的 sleep 剛好醒來，把它的「零速 publish」排進 thread pool，
+    # 3) 結果新 Twist 才剛動就被舊的 stop 撞停。
+    cancel_pending_auto_stop()
+
     # ── 4. 發第一筆 Twist ──
     # publish 是同步操作（rclpy publisher.publish 不是 async），
     # 用 to_thread 避免阻塞 TUI event loop
@@ -114,9 +128,6 @@ async def drive_skill(
         await asyncio.to_thread(ros.publish, topic, type_str, _twist(linear, angular))
     except Exception as e:  # noqa: BLE001
         return f"發布 Twist 失敗：{e}"
-
-    # 新指令來了，先取消上一個排程中的自動停（避免舊的 stop 打斷這次動作）
-    cancel_pending_auto_stop()
 
     # 已經是 stop → 直接結束
     if direction == "stop":
