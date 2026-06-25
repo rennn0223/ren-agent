@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.3] - 2026-06-25
+
+### Docs
+- 新增 `MATURITY.md`：專案成熟度自評表（可打勾），以「安全優先」分十層，定義 v1.0.0 上線出場條件。
+- 重寫 `ROADMAP.md`：自 v0.4.0 起依安全優先順序推進（v0.4.0 安全層 → v0.5.0 可靠/可觀測/Isaac Sim → v0.6.0 Security/CI/CD → v0.7.0 多車 → v1.0.0 可上線）。
+- `README.md`：版本表更新、加入安全須知與 `MATURITY.md` 連結。
+
 ## [0.3.2] - 2026-06-24
 
 ### Added

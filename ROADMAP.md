@@ -68,29 +68,104 @@
 
 ***
 
-## 📋 v0.4.0 — Isaac Sim 實戰
+## ✅ v0.3.2 — 路線規劃、動態 ROS domain、Markdown 渲染
 
-- [ ] Isaac Sim 端寫一個 subscriber 接 `/ren_agent/goal`
-- [ ] 把 `locations.yaml` 從經緯度換成 Isaac Sim 本地 frame（meter）
-- [ ] `/drive` 改可由 LLM 動態調速（依環境提示降速）
-- [ ] `goto` 加路徑回報（reached / blocked / replanned）
-- [ ] TUI 即時顯示車輛當前位置（subscribe `/odom`）
+- [x] **路線規劃**：`/route <起點> <終點>`（與自然語言「從應科走到機械系館」）
+  - [x] 查 `locations.yaml` 兩端座標、發布 `go_agent_route`、把座標印到對話欄位
+  - [x] 地名支援簡稱（雙向子字串比對）
+- [x] **動態 ROS domain**：`/domain <id> [rmw]` 切換 `ROS_DOMAIN_ID` / `RMW` 並重建 node
+- [x] **Agent 指令**：`/agent [cmd]` 發 `std_msgs/String` JSON 到 `/ai_agent/command`（先等訂閱者）
+- [x] `route` / `set_domain` / `agent_command` skill + tool schema
+- [x] `core/context.py`（token 估算 + StatusBar 用量）、`core/files.py`（`@` mention）
+- [x] TUI：ESC 中斷、Shift+Tab 模式切換、Ctrl+R 展開、動態 spinner
+- [x] 助手回覆 Markdown 即時渲染、welcome panel 隨 resize 動態置中
+- [x] ROS2 humble → jazzy、新增 `numpy` 依賴
 
 ***
 
-## 📋 v0.5.0 — 多車與安全
+> 📐 **規劃原則**：自 v0.4.0 起，依 [MATURITY.md](./MATURITY.md) 的安全優先順序推進
+> （**安全 > 可靠 > 可測試 > 模塊化 > 可維護 > 好用**）。
+> LLM 只負責「意圖」，執行層必須有確定性的安全閘門。
+> **v1.0.0 = 安全層全綠 + SIL 驗證 + 可觀測 + Security + CI/CD + 文件齊備 → 可上線。**
+
+***
+
+## 🛡️ v0.4.0 — 安全層（Safety-critical，最高優先）
+
+> 對應 MATURITY 第一層。這是從「Demo / 工具」走向「可控實體車」最關鍵的一步。
+
+- [ ] **執行層速度 / 加速度上限夾限**：`/drive` 與所有移動 skill 在發 `Twist` 前 clamp（投報率最高，先做）
+- [ ] **緊急停止 E-stop**：鍵盤快捷鍵 + E-stop topic，任何狀態下立即停車，優先級最高
+- [ ] **`/cmd_vel` watchdog**：控制訊號超時（例如 >300ms 未更新）自動發 stop
+- [ ] **失效安全 fail-safe**：LLM 當掉 / 連線斷 → 預設停車，而非維持上一動作
+- [ ] **LLM↔執行層驗證閘門**：限制可執行動作集 + 參數範圍檢查（含速度）
+- [ ] **危險 / 不可逆動作需人工確認**：讓 plan / auto-accept 模式真正攔截執行
+- [ ] **地理圍欄 geofence / 工作區邊界**：超出允許範圍拒絕移動
+- [ ] **安全邏輯自動化測試**：超速被擋、超時停車、E-stop 生效都要有測試
+- [ ] **安全參數外部化**：`max_speed`、watchdog timeout、geofence 範圍寫進設定檔
+
+***
+
+## 📡 v0.5.0 — 可靠性、可觀測性與 Isaac Sim 實戰
+
+> 對應 MATURITY 第二、四層。
+
+- [ ] **車輛狀態機**：idle / moving / stopped / error，作為指令仲裁基礎
+- [ ] **動作完成回報**：`goto` / `route` 回報 reached / blocked / replanned
+- [ ] **多指令衝突處理**：移動中收到新指令的仲裁規則（佇列 / 搶佔 / 拒絕）
+- [ ] **重連 / 重試策略**：Ollama 或 ROS2 短暫中斷後自動恢復
+- [ ] **稽核軌跡 audit trail**：自然語言輸入 → LLM 決策 → 實際 ROS2 訊息全程可追溯、可回放
+- [ ] **TUI 即時車輛狀態**：subscribe `/odom` 顯示位置 / 速度
+- [ ] **Isaac Sim 串接**：Sim 端 subscriber 接 `/ren_agent/goal`
+- [ ] `locations.yaml` 改用 Isaac Sim 本地 frame（meter）
+- [ ] **SIL（模擬器在環）測試**：Sim 跑通「自然語言 → 移動 → 到達回報」完整流程
+
+***
+
+## 🔐 v0.6.0 — Security、部署與 CI/CD
+
+> 對應 MATURITY 第六、五、九層。
+
+- [ ] **控車指令存取控制**：誰可以下指令（車控網路暴露 = 遠端遙控實體車）
+- [ ] **ROS2 網路隔離 / 認證**（SROS2 或網段隔離）
+- [ ] **GitHub Actions CI**：PR 自動跑 ruff / mypy / pytest
+- [ ] 受保護分支 + PR review 規則
+- [ ] release 自動 build wheel
+- [ ] 容器化 / 服務化部署（Docker 或 systemd）+ 部署文件
+
+***
+
+## 🚗 v0.7.0 — 多車與進階能力
 
 - [ ] 多 namespace 支援（`/robot_1/cmd_vel`、`/robot_2/cmd_vel`）
-- [ ] SLAM 地圖 hook：列出已知地點、加新地點
-- [ ] 安全層：emergency stop topic、超時自動停車
+- [ ] SLAM 地圖 hook：列出已知地點、新增地點
 - [ ] 簡易 telemetry：電量 / 速度 / 障礙物距離
+- [ ] `/drive` 由 LLM 依環境提示動態調速（在安全夾限內）
+
+***
+
+## 🏁 v1.0.0 — 可上線（Definition of Done）
+
+> 達成 [MATURITY.md](./MATURITY.md) 全部出場條件才視為完善可上線。
+
+- [ ] 安全層全綠（v0.4.0 全部完成 + 測試）
+- [ ] 可靠性：狀態機 + 動作回報 + 重連策略
+- [ ] 可觀測性：完整稽核軌跡 + 即時車輛狀態
+- [ ] SIL 驗證 + 實車驗證通過
+- [ ] Security：存取控制 + 網路隔離
+- [ ] CI/CD：PR 自動檢查 + 受保護分支
+- [ ] 文件：架構圖 + 操作員安全手冊 + 開發指南
 
 ***
 
 ## 📦 維運與品質（持續進行）
 
+- [x] CHANGELOG 跟著版本走
+- [x] 語意化版本 + git tag + GitHub Release
+- [x] 專案成熟度自評表（[MATURITY.md](./MATURITY.md)）
 - [ ] CI：GitHub Actions（ruff / mypy / pytest）
 - [ ] 標籤 release 時自動 build wheel
-- [x] CHANGELOG 跟著版本走
 - [ ] README 補一張 TUI 截圖
-- [ ] `CONTRIBUTING.md`
+- [ ] 架構圖（資料流：使用者 → LLM → skill → ROS2 → 車）
+- [ ] `CONTRIBUTING.md` + 「如何新增一個 skill」開發指南
+- [ ] 操作員安全手冊（實車操作前必讀）
