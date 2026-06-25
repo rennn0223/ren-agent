@@ -99,8 +99,9 @@
 - [x] **移動限時 watchdog**：`max_drive_duration` 上限，不允許無限驅動，車一定在上限內自動停
 - [x] **失效安全 fail-safe**：TUI 關閉時 best-effort 送停車並上鎖；agent 卡住由 watchdog 兜底
 - [x] **arm / disarm 安全閂**：車輛預設上鎖，移動類 skill 未 `/arm` 一律拒絕（擋斜線 + LLM tool-call 兩路）；狀態列常駐 ARMED/DISARMED 徽章
-- [x] **LLM↔執行層驗證閘門**：封閉動作集（已註冊 tool schema）+ 各 skill 參數驗證 + 速度夾限 + arm 閂
-- [x] **安全邏輯自動化測試**：速度夾限 / watchdog / E-stop / arm 閂皆有測試
+- [x] **LLM↔執行層驗證閘門**：封閉動作集（已註冊 tool schema）+ 各 skill 參數驗證 + 速度夾限 + arm 閂 + 萬用發佈人工批准
+- [x] **萬用發佈人工批准閘門（v0.4.2，approval-engine 雛形）**：`ros_publish` 由 LLM 觸發時登記成待批准動作，須 `/approve` 才執行、`/reject` 取消；手打 `/ros pub` 直送。`core/approvals.py`
+- [x] **安全邏輯自動化測試**：速度夾限 / watchdog / E-stop / arm 閂 / 批准閘門皆有測試
 - [x] **安全參數外部化**：`SafetyConfig`（max_linear/angular_speed、max_drive_duration、estop_topic）
 - [ ] **加速度（斜率）限制**：避免瞬間全速（⏳ 後續）
 - [ ] **接收端心跳超時停車**：>300ms 未更新自動停（⏳ 需 Sim/實車端配合）
@@ -112,6 +113,7 @@
 
 > 對應 MATURITY 第二、四層。
 
+- [ ] **規則式風險分數分級**：approval-engine 從「萬用發佈強制批准」擴充為 Low/Medium/High 規則式風險分數（依 topic、`/depth` 障礙、`/odom` 移動中、近期 error log、模型信心等加權），決定直送 / 提案 / 強制批准
 - [ ] **車輛狀態機**：idle / moving / stopped / error，作為指令仲裁基礎
 - [ ] **動作完成回報**：`goto` / `route` 回報 reached / blocked / replanned
 - [ ] **多指令衝突處理**：移動中收到新指令的仲裁規則（佇列 / 搶佔 / 拒絕）

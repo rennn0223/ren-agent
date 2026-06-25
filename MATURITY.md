@@ -28,7 +28,8 @@
 - [~] **看門狗 watchdog / 心跳**：✅ 單次移動時間硬上限（`max_drive_duration`，不允許無限驅動，車一定在上限內自動停）；⏳ 接收端 >300ms 心跳超時停車待 Sim/實車端配合
 - [~] **速度 / 加速度上限夾限**：✅ 線速度 / 角速度已在執行層硬夾限（`SafetyConfig.max_linear_speed` / `max_angular_speed`，發 Twist 前 clamp 並透明回報）；⏳ 加速度（斜率）限制尚未做
 - [x] **危險動作人工確認 / arm-disarm 安全閂**：車輛預設上鎖；移動類 skill（drive/goto/route/agent）未 `/arm` 一律拒絕（同時擋斜線與 LLM tool-call 兩條路）；狀態列常駐 ARMED/DISARMED 徽章
-- [x] **LLM 與執行層之間的驗證閘門**：可呼叫動作集 = 已註冊 tool schema（封閉集合）+ 各 skill 參數驗證 + 速度硬夾限 + arm 閂
+- [~] **人工批准閘門 approval gate（approval-engine 雛形）**：✅ 萬用發佈 `ros_publish` 由 LLM 觸發時一律登記成待批准動作，須 `/approve` 才執行、`/reject` 取消（`core/approvals.py`）；手打 `/ros pub` 視為人類把關直送；⏳ 規則式風險分數分級（Low/Medium/High）移至 v0.5
+- [x] **LLM 與執行層之間的驗證閘門**：可呼叫動作集 = 已註冊 tool schema（封閉集合）+ 各 skill 參數驗證 + 速度硬夾限 + arm 閂 + 萬用發佈人工批准
 - [~] **安全邏輯的自動化測試**：✅ 速度夾限 / watchdog / E-stop / arm 閂皆有測試；⏳ geofence 等後續項待補
 - [ ] **地理圍欄 geofence / 工作區邊界**：超出允許範圍拒絕移動（⏳ 需要車輛定位 `/odom`，移至 v0.5 一起做）
 

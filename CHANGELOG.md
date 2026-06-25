@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.2] - 2026-06-25
+
+### Added（安全層 — approval gate 雛形）
+- **萬用發佈人工批准閘門**：保留 `ros_publish`（對任意 topic 發任意內容，本專案亮點），但 **LLM 觸發時一律需人工批准**。LLM 呼叫不直接送出，而是登記成「待批准動作」並回覆提示；使用者 `/approve` 才真正發布、`/reject` 取消。手打 `/ros pub` 視為人類已把關，直送。新增 `core/approvals.py`（approval-engine 最小雛形）。
+- **`/approve`、`/reject` 指令**：批准 / 取消待處理的高風險動作。狀態列在有待批准動作時顯示 `⏳ 待批准 /approve` 徽章。
+
+### Added（TUI）
+- **批准卡片（按鈕式）**：有待批准動作時，輸入框上方彈出卡片，含「✓ 批准 / ✗ 拒絕」按鈕（像 Claude / Cursor 的批准卡），點擊等同 `/approve`、`/reject`。
+- **Slash 指令可自訂排序**：`SlashCommand` 新增 `order` 權重，`/help` 與 `/` 補全選單改依 (order, name) 排序（安全閂 → 移動控制 → 批准 → ROS 內省 → 設定 → 系統），常用指令置頂，不再是字母序。
+
+### Fixed（可靠性）
+- **`/drive` 自動停更可靠**：watchdog 自動停 task 改為持有強參考，避免被 asyncio 提早 GC 導致靜默失效；新指令或 E-stop 進來時會取消上一個排程中的自動停（`cancel_pending_auto_stop()`），避免舊的 stop 打斷新動作。
+
 ## [0.4.1] - 2026-06-25
 
 ### Changed（TUI）

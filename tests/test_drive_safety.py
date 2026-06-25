@@ -111,6 +111,29 @@ def test_drive_caps_excessive_duration() -> None:
     assert fake.calls[-1][2]["linear"]["x"] == 0.0
 
 
+def test_new_drive_cancels_previous_auto_stop() -> None:
+    """連續兩個移動指令：前一個的 auto-stop 應被取消，不會打斷新動作。"""
+    fake = _FakeRos()
+
+    async def _run():
+        with (
+            patch.object(drive, "safe_get_ros2", return_value=(fake, None)),
+            patch.object(drive, "get_config", return_value=AppConfig()),
+        ):
+            await drive.drive_skill("forward", speed=0.2, duration=5)
+            first = drive._auto_stop_task
+            await drive.drive_skill("forward", speed=0.2, duration=5)
+            second = drive._auto_stop_task
+            drive.cancel_pending_auto_stop()  # 收尾，避免遺留 pending task
+            await asyncio.sleep(0)            # 讓取消生效
+            return first, second
+
+    first, second = asyncio.run(_run())
+    assert first is not second
+    assert first.cancelled()
+    assert second.cancelled()
+
+
 def test_drive_reports_clamp_warning_and_auto_stops() -> None:
     fake = _FakeRos()
 

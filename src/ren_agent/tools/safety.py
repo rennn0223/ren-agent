@@ -32,6 +32,13 @@ async def estop_skill() -> str:
     """緊急停止：立即送 0 速度，並（若有設定）發 E-stop 訊號。"""
     # latch：E-stop 後上鎖，必須重新 /arm 才能再移動
     disarm()
+    # 取消任何排程中的自動停，避免它之後又多送一筆（無害但乾淨）
+    try:
+        from ren_agent.tools.drive import cancel_pending_auto_stop
+
+        cancel_pending_auto_stop()
+    except Exception:  # noqa: BLE001
+        pass
     ros, err = safe_get_ros2()
     if not ros:
         return f"🛑 E-STOP：ROS2 不可用（{err}），無法發送停車訊號！（已上鎖）"

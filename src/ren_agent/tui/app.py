@@ -49,7 +49,7 @@ from textual.events import Resize
 from textual.geometry import Size
 from textual.reactive import reactive
 from textual.strip import Strip
-from textual.widgets import Input, RichLog, Static
+from textual.widgets import Button, Input, RichLog, Static
 
 from ren_agent import __version__
 from ren_agent.core.commands import (
@@ -69,6 +69,10 @@ from ren_agent.core.skills import (
 from ren_agent.tools.drive import register_drive_skills
 from ren_agent.tools.goto import register_goto_skills
 from ren_agent.tools.ros2_skills import register_ros2_skills
+from ren_agent.core.approvals import (
+    has_pending as has_pending_approval,
+    pending_description,
+)
 from ren_agent.core.safety_state import is_armed
 from ren_agent.tools.safety import register_safety_skills
 
@@ -479,8 +483,9 @@ class StatusBar(Static):
             badge = "[#000000 on #d07d50] ● ARMED [/]"
         else:
             badge = "[#ffffff on #707070] ● DISARMED [/]"
+        pending = "  [#000000 on #e0b000] ⏳ 待批准 /approve [/]" if has_pending_approval() else ""
         return (
-            f"  {badge}  [{C_DIM}]{self.status}[/{C_DIM}]\n"
+            f"  {badge}{pending}  [{C_DIM}]{self.status}[/{C_DIM}]\n"
             f"  [{C_DIM}]{hint_left}[/{C_DIM}]"
             f"   [{C_DIM}]{hint_right}[/{C_DIM}]"
         )
@@ -566,6 +571,37 @@ class RenAgentApp(App):
 
     #slash-menu.-visible {{
         display: block;
+    }}
+
+    #approval-card {{
+        height: auto;
+        margin: 0 1 1 1;
+        padding: 0 1;
+        border: round #e0b000;
+        background: {C_INPUT_BG};
+        display: none;
+    }}
+
+    #approval-card.-visible {{
+        display: block;
+    }}
+
+    #approval-text {{
+        height: auto;
+        color: #e0b000;
+        padding: 0 0 1 0;
+    }}
+
+    #approval-actions {{
+        height: auto;
+        align: left middle;
+    }}
+
+    #btn-approve, #btn-reject {{
+        height: 1;
+        min-width: 8;
+        border: none;
+        margin: 0 2 0 0;
     }}
 
     #thinking-line {{
@@ -667,6 +703,9 @@ class RenAgentApp(App):
         self._input_history: list[str] = _load_recent_history(_HISTORY_MAX)
         self._input_history_index: int | None = None  # 上下鍵瀏覽時的游標
         self._last_response_at: str | None = None     # 最後一次 LLM 回應時間（給 status bar）
+        # 待批准卡片目前的顯示狀態（避免每次輪詢都重畫）
+        self._approval_shown = False
+        self._approval_desc = ""
 
     # ── Widget 快速存取 ──────────────────────────────────
     def _chat(self) -> CompactRichLog:
@@ -686,6 +725,12 @@ class RenAgentApp(App):
 
         # 下方輸入區
         with Vertical(id="input-area"):
+            # 待批准卡片（像 Claude/Cursor 的批准按鈕）；預設隱藏
+            with Vertical(id="approval-card"):
+                yield Static("", id="approval-text")
+                with Horizontal(id="approval-actions"):
+                    yield Button("✓ 批准", id="btn-approve", variant="success")
+                    yield Button("✗ 拒絕", id="btn-reject", variant="error")
             yield ThinkingLine(id="thinking-line")  # spinner
             yield SlashMenu(id="slash-menu")        # / 補全
             with Horizontal(id="prompt-zone"):
@@ -725,6 +770,8 @@ class RenAgentApp(App):
         self.check_ollama()
         self._input().focus()
         self._refresh_focus_style()
+        # 輪詢待批准狀態，有就彈出批准卡片（approval 由 widget 外部設定，輪詢最可靠）
+        self.set_interval(0.4, self._refresh_approval_card)
 
     def on_unmount(self) -> None:
         """關閉前：① fail-safe 送停車 ② 乾淨關閉 ROS2（避免 C++ std::terminate）。"""
@@ -1101,6 +1148,37 @@ class RenAgentApp(App):
 
         await command.handler(ctx, args)
         return True
+
+    # ── 待批准卡片（批准按鈕）──────────────────────────────
+
+    def _refresh_approval_card(self) -> None:
+        """輪詢 approvals 狀態：有待批准且非思考中就顯示卡片，否則收起。"""
+        show = has_pending_approval() and not self._thinking
+        desc = pending_description() or ""
+        if show == self._approval_shown and desc == self._approval_desc:
+            return
+        self._approval_shown = show
+        self._approval_desc = desc
+        card = self.query_one("#approval-card")
+        if show:
+            self.query_one("#approval-text", Static).update(
+                f"⏳ 此動作需人工批准：[white]{desc}[/white]"
+            )
+            card.add_class("-visible")
+        else:
+            card.remove_class("-visible")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """批准 / 拒絕按鈕：等同於打 /approve、/reject。"""
+        if event.button.id not in ("btn-approve", "btn-reject"):
+            return
+        # 點下立刻收卡片，回饋更即時；實際結果由 worker 寫回對話
+        self.query_one("#approval-card").remove_class("-visible")
+        self._approval_shown = False
+        self._approval_desc = ""
+        raw = "/approve" if event.button.id == "btn-approve" else "/reject"
+        self.execute_slash_command(raw)
+        self._input().focus()
 
     # ── Action handlers ──────────────────────────────────
 
