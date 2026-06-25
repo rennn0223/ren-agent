@@ -60,6 +60,24 @@ async def estop_skill() -> str:
     return "🛑 緊急停止 E-STOP：" + "；".join(notes)
 
 
+def stop_now() -> bool:
+    """
+    同步、best-effort 送 0 速度。給「fail-safe」場景用（例如 TUI 關閉時），
+    不丟例外、不依賴 event loop。回傳是否成功送出。
+    """
+    ros, _ = safe_get_ros2()
+    if not ros:
+        return False
+    try:
+        cfg = get_config()
+        ros.publish(
+            cfg.ros2.cmd_vel_topic, "geometry_msgs/msg/Twist", _zero_twist()
+        )
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 # ── Ollama tool schema ───────────────────────────────
 _ESTOP_TOOL = {
     "type": "function",

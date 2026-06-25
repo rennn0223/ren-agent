@@ -53,6 +53,9 @@ class SafetyConfig(BaseModel):
     max_angular_speed: float = 1.0
     # E-stop 訊號 topic（std_msgs/Bool）；空字串 = 不額外發訊號，只送 0 速度。
     estop_topic: str = "/ren_agent/estop"
+    # 單次移動的最長秒數（watchdog）：任何 /drive 一定會在此時間內自動停，
+    # 不允許「無限驅動」。duration<=0 或超過上限都會被夾到此值。
+    max_drive_duration: float = 5.0
 
 
 # ── 頂層設定 ──────────────────────────────────────────

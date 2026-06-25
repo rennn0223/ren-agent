@@ -55,8 +55,10 @@ async def drive_skill(
     控制車子。
 
     direction: forward / back / left / right / stop
-    speed:     線速度（m/s）或角速度（rad/s）的大小，預設 0.3（安全速度）
-    duration:  幾秒後自動 stop。<= 0 表示不自動 stop（停在那個速度）。
+    speed:     線速度（m/s）或角速度（rad/s）的大小，預設 0.3（安全速度）；
+               發出前會被夾限到 SafetyConfig 的上限。
+    duration:  幾秒後自動 stop。<= 0 或超過 max_drive_duration 會被夾到上限
+               （watchdog：不允許無限驅動，車一定會在上限內自動停）。
     """
     # ── 1. 參數驗證 ──
     direction = direction.lower().strip()
@@ -92,9 +94,18 @@ async def drive_skill(
     except Exception as e:  # noqa: BLE001
         return f"發布 Twist 失敗：{e}"
 
-    # 已經是 stop 或不需要自動 stop → 直接結束
-    if direction == "stop" or duration <= 0:
+    # 已經是 stop → 直接結束
+    if direction == "stop":
         return f"已送出 stop 到 {topic}"
+
+    # ── 4.5 watchdog：單次移動時間有硬上限，不允許無限驅動 ──
+    # duration<=0（原本是「不自動停」）或超過上限，一律夾到 max_drive_duration，
+    # 確保車子一定會在上限內自動停。
+    max_dur = safety.max_drive_duration
+    duration_capped = False
+    if duration <= 0 or duration > max_dur:
+        duration = max_dur
+        duration_capped = True
 
     # ── 5. 排程 duration 秒後的自動 stop ──
     # 用 fire-and-forget 的 background task，呼叫端不用 await
@@ -116,6 +127,8 @@ async def drive_skill(
             f" ⚠️ 速度已夾限至安全上限"
             f"（linear≤{safety.max_linear_speed}, angular≤{safety.max_angular_speed}）。"
         )
+    if duration_capped:
+        msg += f" ⚠️ 移動時間已限制為 {max_dur:.1f}s（watchdog 上限）。"
     return msg
 
 

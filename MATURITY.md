@@ -24,8 +24,8 @@
 > 這是車控專案跟一般軟體最大的差別，也是目前 ren-agent 最大的缺口。
 
 - [x] **緊急停止 E-stop**：Ctrl+X 快捷鍵 / `/estop` / 自然語言「緊急停止」→ 立即送 0 速度 + 發 E-stop 訊號（`estop_topic`），並取消進行中的 LLM 串流與佇列
-- [ ] **失效安全 fail-safe**：LLM 當掉 / 連線斷 / 收不到訊號 → 預設「停車」，而非維持上一動作
-- [ ] **看門狗 watchdog / 心跳**：`/cmd_vel` 超時（例如 >300ms 未更新）自動發 stop
+- [~] **失效安全 fail-safe**：✅ TUI 關閉時 best-effort 送停車（`stop_now`）+ agent 卡住由 watchdog 上限兜底；⏳ ROS/Ollama 斷線自動恢復待做
+- [~] **看門狗 watchdog / 心跳**：✅ 單次移動時間硬上限（`max_drive_duration`，不允許無限驅動，車一定在上限內自動停）；⏳ 接收端 >300ms 心跳超時停車待 Sim/實車端配合
 - [~] **速度 / 加速度上限夾限**：✅ 線速度 / 角速度已在執行層硬夾限（`SafetyConfig.max_linear_speed` / `max_angular_speed`，發 Twist 前 clamp 並透明回報）；⏳ 加速度（斜率）限制尚未做
 - [ ] **地理圍欄 geofence / 工作區邊界**：超出允許範圍拒絕移動
 - [~] **LLM 與執行層之間的驗證閘門**：skill 已驗證輸入（route 找不到地點、domain 範圍檢查）+ 速度已硬夾限；⏳ 仍**未限制可執行動作集**

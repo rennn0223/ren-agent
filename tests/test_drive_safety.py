@@ -58,6 +58,48 @@ def test_drive_within_limit_not_clamped() -> None:
     assert "夾限" not in result
 
 
+def _cfg_short_watchdog() -> AppConfig:
+    cfg = AppConfig()
+    cfg.safety.max_drive_duration = 0.05
+    return cfg
+
+
+def test_drive_caps_infinite_duration() -> None:
+    """duration<=0 不再是無限驅動，會被夾到 watchdog 上限並自動停。"""
+    fake = _FakeRos()
+
+    async def _run():
+        with (
+            patch.object(drive, "safe_get_ros2", return_value=(fake, None)),
+            patch.object(drive, "get_config", return_value=_cfg_short_watchdog()),
+        ):
+            result = await drive.drive_skill("forward", speed=0.2, duration=0)
+            await asyncio.sleep(0.15)  # 等 watchdog 自動 stop
+            return result
+
+    result = asyncio.run(_run())
+    assert "watchdog" in result
+    # 最後一筆一定是 stop（0 速度）
+    assert fake.calls[-1][2]["linear"]["x"] == 0.0
+
+
+def test_drive_caps_excessive_duration() -> None:
+    fake = _FakeRos()
+
+    async def _run():
+        with (
+            patch.object(drive, "safe_get_ros2", return_value=(fake, None)),
+            patch.object(drive, "get_config", return_value=_cfg_short_watchdog()),
+        ):
+            result = await drive.drive_skill("forward", speed=0.2, duration=999)
+            await asyncio.sleep(0.15)
+            return result
+
+    result = asyncio.run(_run())
+    assert "watchdog" in result
+    assert fake.calls[-1][2]["linear"]["x"] == 0.0
+
+
 def test_drive_reports_clamp_warning_and_auto_stops() -> None:
     fake = _FakeRos()
 

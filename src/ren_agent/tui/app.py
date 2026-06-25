@@ -659,6 +659,14 @@ class RenAgentApp(App):
         self._input().focus()
         self._refresh_focus_style()
 
+    def on_unmount(self) -> None:
+        """關閉前 fail-safe：best-effort 送一筆停車，避免車維持最後速度繼續跑。"""
+        try:
+            from ren_agent.tools.safety import stop_now
+            stop_now()
+        except Exception:  # noqa: BLE001
+            pass
+
     # ── Skill 實作 ───────────────────────────────────────
 
     async def _set_model_skill(self, name: str) -> str:

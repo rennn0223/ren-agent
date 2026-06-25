@@ -62,3 +62,20 @@ def test_estop_ros_unavailable() -> None:
 
     result = asyncio.run(_run())
     assert "ROS2 不可用" in result
+
+
+def test_stop_now_publishes_zero_twist() -> None:
+    fake = _FakeRos()
+    with (
+        patch.object(safety, "safe_get_ros2", return_value=(fake, None)),
+        patch.object(safety, "get_config", return_value=AppConfig()),
+    ):
+        ok = safety.stop_now()
+    assert ok is True
+    assert fake.calls[0][0] == "/cmd_vel"
+    assert fake.calls[0][2]["linear"]["x"] == 0.0
+
+
+def test_stop_now_returns_false_when_ros_unavailable() -> None:
+    with patch.object(safety, "safe_get_ros2", return_value=(None, "no rclpy")):
+        assert safety.stop_now() is False
