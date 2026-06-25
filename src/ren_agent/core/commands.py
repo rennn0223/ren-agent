@@ -39,6 +39,7 @@ class SlashCommand:
     aliases: List[str]           # 別名清單，如 bye 的 exit, quit
     description: str             # 顯示在 /help 與 SlashMenu
     handler: CommandHandler      # 實際執行函式
+    order: int = 100             # 顯示排序權重（小的在前；同權重再依名稱）
 
 
 # ── Registry ─────────────────────────────────────────
@@ -59,7 +60,8 @@ def get_command(name: str) -> SlashCommand | None:
 
 def all_commands() -> List[SlashCommand]:
     """
-    去重後依名稱排序（給 SlashMenu / /help 用）。
+    去重後依 (order, name) 排序（給 SlashMenu / /help 用）。
+    order 小的排前面，讓常用指令置頂；同 order 再依名稱字母序。
     因為 alias 與主名稱都在 _COMMANDS 裡，要過濾掉重複的物件。
     """
     seen: set[str] = set()
@@ -69,7 +71,7 @@ def all_commands() -> List[SlashCommand]:
             continue
         seen.add(cmd.name)
         results.append(cmd)
-    return sorted(results, key=lambda c: c.name)
+    return sorted(results, key=lambda c: (c.order, c.name))
 
 
 # ── Handlers ─────────────────────────────────────────
@@ -146,7 +148,8 @@ async def _cmd_ros_pub(ctx: CommandContext, args: str) -> None:
         ctx.write_system('用法：/ros pub <topic> <json>，例如 /ros pub /chatter {"data":"hi"}')
         return
     topic, payload = parts
-    await ctx.run_skill("ros_publish", topic=topic, payload=payload)
+    # 手打 /ros pub：人已經是把關者，直送（_approved=True 不在 LLM tool schema 裡）
+    await ctx.run_skill("ros_publish", topic=topic, payload=payload, _approved=True)
 
 
 async def _cmd_domain(ctx: CommandContext, args: str) -> None:
@@ -187,6 +190,25 @@ async def _cmd_disarm(ctx: CommandContext, args: str) -> None:
     ctx.write_system("🔒 車輛已上鎖（disarmed）。移動類指令會被拒絕。")
 
 
+async def _cmd_approve(ctx: CommandContext, args: str) -> None:
+    """/approve — 批准並執行待批准的高風險動作（例如 LLM 觸發的 ros_publish）。"""
+    from ren_agent.core.approvals import approve, has_pending
+
+    if not has_pending():
+        ctx.write_system("目前沒有待批准的動作。")
+        return
+    ctx.write_system("✅ 已批准，執行中…")
+    result = await approve()
+    ctx.write_system(result)
+
+
+async def _cmd_reject(ctx: CommandContext, args: str) -> None:
+    """/reject — 取消待批准的動作。"""
+    from ren_agent.core.approvals import reject
+
+    ctx.write_system(reject())
+
+
 async def _cmd_route(ctx: CommandContext, args: str) -> None:
     """/route <起點> <終點> — 規劃路線、發布 go_agent_route 並印出座標。"""
     parts = args.split()
@@ -224,22 +246,33 @@ async def _cmd_goto(ctx: CommandContext, args: str) -> None:
 
 # ── 註冊入口 ────────────────────────────────────────
 def register_builtin_commands() -> None:
-    """TUI on_mount() 啟動時呼叫一次，把所有內建指令塞進 registry。"""
-    register_command(SlashCommand("help", [], "顯示可用斜線指令列表", _cmd_help))
-    register_command(SlashCommand("bye", ["exit", "quit"], "關閉 ren-agent", _cmd_bye))
-    register_command(SlashCommand("clear", [], "清空對話記錄", _cmd_clear))
-    register_command(SlashCommand("model", [], "切換模型，例如 /model qwen3:8b", _cmd_model))
-    register_command(SlashCommand("ros-topics", [], "列出目前 ROS2 topics", _cmd_ros_topics))
-    register_command(SlashCommand("ros-echo", [], "讀取指定 ROS2 topic 一次", _cmd_ros_echo))
-    register_command(SlashCommand("ros-type", [], "查詢指定 topic 的訊息型別", _cmd_ros_type))
-    register_command(SlashCommand("ros-pub", [], "發布 JSON 到 topic（自動推斷型別）", _cmd_ros_pub))
-    register_command(SlashCommand("drive", [], "控制車子：forward/back/left/right/stop", _cmd_drive))
-    register_command(SlashCommand("estop", ["stop"], "緊急停止車輛（立即送 0 速度）", _cmd_estop))
-    register_command(SlashCommand("arm", [], "解鎖車輛（允許移動）", _cmd_arm))
-    register_command(SlashCommand("disarm", [], "上鎖車輛（拒絕移動）", _cmd_disarm))
-    register_command(SlashCommand("goto", [], "送出地點座標給 Isaac Sim", _cmd_goto))
-    register_command(SlashCommand("domain", [], "切換 ROS_DOMAIN_ID，例如 /domain 30", _cmd_domain))
-    register_command(SlashCommand("agent", [], "發指令給 AI agent，例如 /agent go_agent_route", _cmd_agent))
-    register_command(
-        SlashCommand("route", [], "規劃路線：/route <起點> <終點>", _cmd_route)
-    )
+    """TUI on_mount() 啟動時呼叫一次，把所有內建指令塞進 registry。
+
+    order 由小到大決定 SlashMenu / /help 的顯示順序：
+      10s 安全閂 → 20s 移動控制 → 30s 批准 → 40s ROS 內省 → 50s 設定 → 60s 系統。
+    調整常用度只要改 order 數字即可。
+    """
+    # ── 10：安全閂（最常用）──
+    register_command(SlashCommand("arm", [], "解鎖車輛（允許移動）", _cmd_arm, order=10))
+    register_command(SlashCommand("disarm", [], "上鎖車輛（拒絕移動）", _cmd_disarm, order=11))
+    register_command(SlashCommand("estop", ["stop"], "緊急停止車輛（立即送 0 速度）", _cmd_estop, order=12))
+    # ── 20：移動控制 ──
+    register_command(SlashCommand("drive", [], "控制車子：forward/back/left/right/stop", _cmd_drive, order=20))
+    register_command(SlashCommand("goto", [], "送出地點座標給 Isaac Sim", _cmd_goto, order=21))
+    register_command(SlashCommand("route", [], "規劃路線：/route <起點> <終點>", _cmd_route, order=22))
+    register_command(SlashCommand("agent", [], "發指令給 AI agent，例如 /agent go_agent_route", _cmd_agent, order=23))
+    # ── 30：人工批准 ──
+    register_command(SlashCommand("approve", [], "批准待處理的高風險動作", _cmd_approve, order=30))
+    register_command(SlashCommand("reject", [], "取消待處理的高風險動作", _cmd_reject, order=31))
+    # ── 40：ROS2 內省 / 發佈 ──
+    register_command(SlashCommand("ros-topics", [], "列出目前 ROS2 topics", _cmd_ros_topics, order=40))
+    register_command(SlashCommand("ros-echo", [], "讀取指定 ROS2 topic 一次", _cmd_ros_echo, order=41))
+    register_command(SlashCommand("ros-type", [], "查詢指定 topic 的訊息型別", _cmd_ros_type, order=42))
+    register_command(SlashCommand("ros-pub", [], "發布 JSON 到 topic（自動推斷型別）", _cmd_ros_pub, order=43))
+    # ── 50：設定 ──
+    register_command(SlashCommand("domain", [], "切換 ROS_DOMAIN_ID，例如 /domain 30", _cmd_domain, order=50))
+    register_command(SlashCommand("model", [], "切換模型，例如 /model qwen3:8b", _cmd_model, order=51))
+    # ── 60：系統 / 會話 ──
+    register_command(SlashCommand("help", [], "顯示可用斜線指令列表", _cmd_help, order=60))
+    register_command(SlashCommand("clear", [], "清空對話記錄", _cmd_clear, order=61))
+    register_command(SlashCommand("bye", ["exit", "quit"], "關閉 ren-agent", _cmd_bye, order=62))
