@@ -42,19 +42,144 @@ class DummyCtx(CommandContext):
 
 def test_builtin_commands_register() -> None:
     register_builtin_commands()
-    for name in ("help", "model", "clear", "bye", "drive", "goto", "ros-pub"):
+    for name in ("help", "model", "clear", "bye", "drive", "goto", "ros-pub", "setspeed"):
         assert get_command(name) is not None, name
 
 
-def test_drive_command_invokes_skill() -> None:
+def test_drive_second_unit() -> None:
+    """forward 3 second → duration=3, speed=預設線速度 1.0"""
     register_builtin_commands()
     cmd = get_command("drive")
     assert cmd is not None
     ctx = DummyCtx()
-    asyncio.run(cmd.handler(ctx, "forward 0.5 2"))
-    assert ctx.skills_log == [
-        ("drive", {"direction": "forward", "speed": 0.5, "duration": 2.0})
-    ]
+    asyncio.run(cmd.handler(ctx, "forward 3 second"))
+    assert ctx.skills_log == [("drive", {"direction": "forward", "speed": 1.0, "duration": 3.0})]
+
+
+def test_drive_meter_unit() -> None:
+    """forward 2 meter → duration = 2.0 / 1.0 = 2.0"""
+    register_builtin_commands()
+    cmd = get_command("drive")
+    assert cmd is not None
+    ctx = DummyCtx()
+    asyncio.run(cmd.handler(ctx, "forward 2 meter"))
+    assert ctx.skills_log == [("drive", {"direction": "forward", "speed": 1.0, "duration": 2.0})]
+
+
+def test_drive_meter_unit_aliases() -> None:
+    """meters / m 都合法"""
+    register_builtin_commands()
+    cmd = get_command("drive")
+    assert cmd is not None
+    for unit in ("meters", "m"):
+        ctx = DummyCtx()
+        asyncio.run(cmd.handler(ctx, f"back 1 {unit}"))
+        assert ctx.skills_log == [("drive", {"direction": "back", "speed": 1.0, "duration": 1.0})], unit
+
+
+def test_drive_second_aliases() -> None:
+    """seconds / sec / s 都合法"""
+    register_builtin_commands()
+    cmd = get_command("drive")
+    assert cmd is not None
+    for unit in ("seconds", "sec", "s"):
+        ctx = DummyCtx()
+        asyncio.run(cmd.handler(ctx, f"forward 2 {unit}"))
+        assert ctx.skills_log == [("drive", {"direction": "forward", "speed": 1.0, "duration": 2.0})], unit
+
+
+def test_drive_stop_no_unit() -> None:
+    """/drive stop 不需要單位"""
+    register_builtin_commands()
+    cmd = get_command("drive")
+    assert cmd is not None
+    ctx = DummyCtx()
+    asyncio.run(cmd.handler(ctx, "stop"))
+    assert ctx.skills_log == [("drive", {"direction": "stop", "speed": 0.0, "duration": 0.0})]
+
+
+def test_drive_angular_uses_angular_speed() -> None:
+    """left/right 用 angular 預設速度 0.3"""
+    register_builtin_commands()
+    cmd = get_command("drive")
+    assert cmd is not None
+    ctx = DummyCtx()
+    asyncio.run(cmd.handler(ctx, "left 3 second"))
+    assert ctx.skills_log == [("drive", {"direction": "left", "speed": 0.3, "duration": 3.0})]
+
+
+def test_drive_invalid_unit_shows_error() -> None:
+    register_builtin_commands()
+    cmd = get_command("drive")
+    assert cmd is not None
+    ctx = DummyCtx()
+    asyncio.run(cmd.handler(ctx, "forward 2 km/h"))
+    assert ctx.skills_log == []
+    assert any("不支援的單位" in m for m in ctx.system)
+
+
+def test_drive_missing_unit_shows_usage() -> None:
+    register_builtin_commands()
+    cmd = get_command("drive")
+    assert cmd is not None
+    ctx = DummyCtx()
+    asyncio.run(cmd.handler(ctx, "forward 2"))
+    assert ctx.skills_log == []
+    assert any("用法" in m for m in ctx.system)
+
+
+def test_drive_invalid_direction_shows_error() -> None:
+    register_builtin_commands()
+    cmd = get_command("drive")
+    assert cmd is not None
+    ctx = DummyCtx()
+    asyncio.run(cmd.handler(ctx, "sideways 2 meter"))
+    assert ctx.skills_log == []
+    assert any("未知方向" in m for m in ctx.system)
+
+
+def test_setspeed_updates_drive_speed() -> None:
+    """setspeed 後，drive 用新速度計算 duration"""
+    import ren_agent.core.commands as _cmds
+    register_builtin_commands()
+    # reset to known state
+    _cmds._drive_linear_speed = 1.0
+    _cmds._drive_angular_speed = 0.3
+
+    setspeed_cmd = get_command("setspeed")
+    assert setspeed_cmd is not None
+    ctx = DummyCtx()
+    asyncio.run(setspeed_cmd.handler(ctx, "2.0 0.5"))
+    assert _cmds._drive_linear_speed == 2.0
+    assert _cmds._drive_angular_speed == 0.5
+
+    # forward 2 meter with speed=2.0 → duration=1.0
+    drive_cmd = get_command("drive")
+    ctx2 = DummyCtx()
+    asyncio.run(drive_cmd.handler(ctx2, "forward 2 meter"))
+    assert ctx2.skills_log == [("drive", {"direction": "forward", "speed": 2.0, "duration": 1.0})]
+
+    # restore
+    _cmds._drive_linear_speed = 1.0
+    _cmds._drive_angular_speed = 0.3
+
+
+def test_setspeed_no_args_shows_current() -> None:
+    register_builtin_commands()
+    cmd = get_command("setspeed")
+    assert cmd is not None
+    ctx = DummyCtx()
+    asyncio.run(cmd.handler(ctx, ""))
+    assert any("目前速度" in m for m in ctx.system)
+
+
+def test_setspeed_invalid_shows_error() -> None:
+    register_builtin_commands()
+    cmd = get_command("setspeed")
+    assert cmd is not None
+    ctx = DummyCtx()
+    asyncio.run(cmd.handler(ctx, "-1 0.3"))
+    assert any("必須 > 0" in m for m in ctx.system)
 
 
 def test_goto_list_routes_to_goto_list_skill() -> None:

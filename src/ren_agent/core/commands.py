@@ -40,6 +40,7 @@ class SlashCommand:
     description: str             # 顯示在 /help 與 SlashMenu
     handler: CommandHandler      # 實際執行函式
     order: int = 100             # 顯示排序權重（小的在前；同權重再依名稱）
+    example: str = ""            # 在 /help 顯示的使用範例
 
 
 # ── Registry ─────────────────────────────────────────
@@ -86,11 +87,12 @@ async def _cmd_help(ctx: CommandContext, args: str) -> None:
     table = Table.grid(padding=(0, 2))
     table.add_column(style="#a5b4fc", no_wrap=True)   # 指令名（淺紫）
     table.add_column(style="#999999")                  # 描述（灰）
+    table.add_column(style="#5eead4", no_wrap=True)    # 範例（青綠）
     table.add_column(style="#666666", no_wrap=True)    # alias（深灰）
 
     for cmd in all_commands():
         alias = f"alias: {', '.join(cmd.aliases)}" if cmd.aliases else ""
-        table.add_row(f"/{cmd.name}", cmd.description, alias)
+        table.add_row(f"/{cmd.name}", cmd.description, cmd.example, alias)
 
     header = Text("Available commands", style="bold #d07d50")
     footer = Text(
@@ -224,32 +226,103 @@ async def _cmd_route(ctx: CommandContext, args: str) -> None:
 
 
 # ── 車輛控制 ──
+
+# /drive 的預設速度；可用 /setspeed 動態修改
+_drive_linear_speed: float = 1.0   # m/s，forward / back 使用
+_drive_angular_speed: float = 0.3  # rad/s，left / right 使用
+
+_UNIT_ALIASES: dict[str, str] = {
+    "second": "second", "seconds": "second", "sec": "second", "s": "second",
+    "meter": "meter",   "meters": "meter",   "m": "meter",
+}
+_LINEAR_DIRS = {"forward", "back"}
+
+_DRIVE_USAGE = (
+    "用法：/drive <方向> <數字> <單位>  或  /drive stop\n"
+    "  方向：forward / back / left / right\n"
+    "  單位：second（秒）或 meter（公尺）\n"
+    "範例：/drive forward 2 meter  ·  /drive back 3 second  ·  /drive stop"
+)
+
+
 async def _cmd_drive(ctx: CommandContext, args: str) -> None:
-    """/drive forward|back|left|right|stop [speed] [duration]."""
+    """/drive forward|back|left|right <n> second|meter  /  /drive stop."""
     parts = args.split()
     if not parts:
-        ctx.write_system("用法：/drive forward|back|left|right|stop [speed] [duration_sec]")
+        ctx.write_system(_DRIVE_USAGE)
         return
+
     direction = parts[0].lower()
-    # 沒給就用預設：0.3 m/s, 1 秒
-    # 解析失敗時友善提示，不要把 ValueError 噴到 Textual 把 TUI 弄死。
-    try:
-        speed = float(parts[1]) if len(parts) > 1 else 0.3
-    except ValueError:
+
+    if direction == "stop":
+        await ctx.run_skill("drive", direction="stop", speed=0.0, duration=0.0)
+        return
+
+    if direction not in {"forward", "back", "left", "right"}:
         ctx.write_system(
-            f"speed 必須是數字，收到：{parts[1]!r}。"
-            f"用法：/drive {direction} [speed] [duration_sec]"
+            f"未知方向：{direction!r}。可用：forward / back / left / right / stop\n"
+            "範例：/drive forward 2 meter"
         )
         return
+
+    if len(parts) < 3:
+        ctx.write_system(_DRIVE_USAGE)
+        return
+
     try:
-        duration = float(parts[2]) if len(parts) > 2 else 1.0
+        value = float(parts[1])
     except ValueError:
+        ctx.write_system(f"數字格式錯誤：{parts[1]!r}。\n範例：/drive forward 2 meter")
+        return
+
+    if value <= 0:
+        ctx.write_system(f"數值必須 > 0，收到：{value}\n範例：/drive forward 2 meter")
+        return
+
+    unit_raw = parts[2].lower()
+    unit = _UNIT_ALIASES.get(unit_raw)
+    if unit is None:
         ctx.write_system(
-            f"duration 必須是數字（秒），收到：{parts[2]!r}。"
-            f"用法：/drive {direction} {parts[1]} [duration_sec]"
+            f"不支援的單位：{unit_raw!r}。\n"
+            "合法單位：second / seconds / sec / s  ·  meter / meters / m\n"
+            "範例：/drive forward 2 meter  ·  /drive back 3 second"
         )
         return
+
+    speed = _drive_linear_speed if direction in _LINEAR_DIRS else _drive_angular_speed
+    duration = value if unit == "second" else value / speed
+
     await ctx.run_skill("drive", direction=direction, speed=speed, duration=duration)
+
+
+async def _cmd_setspeed(ctx: CommandContext, args: str) -> None:
+    """/setspeed <linear m/s> <angular rad/s> — 設定 /drive 的預設速度。"""
+    global _drive_linear_speed, _drive_angular_speed
+    parts = args.split()
+    if len(parts) < 2:
+        ctx.write_system(
+            f"目前速度：linear={_drive_linear_speed} m/s，angular={_drive_angular_speed} rad/s\n"
+            "用法：/setspeed <線速度 m/s> <角速度 rad/s>\n"
+            "範例：/setspeed 1.5 0.5"
+        )
+        return
+    try:
+        linear = float(parts[0])
+        angular = float(parts[1])
+    except ValueError:
+        ctx.write_system("速度必須是數字。範例：/setspeed 1.5 0.5")
+        return
+    if linear <= 0 or angular <= 0:
+        ctx.write_system("速度必須 > 0。範例：/setspeed 1.5 0.5")
+        return
+    old_l, old_a = _drive_linear_speed, _drive_angular_speed
+    _drive_linear_speed = linear
+    _drive_angular_speed = angular
+    ctx.write_system(
+        f"已更新 /drive 預設速度：\n"
+        f"  linear：{old_l} → {linear} m/s\n"
+        f"  angular：{old_a} → {angular} rad/s"
+    )
 
 
 _SAFETY_FIELDS = {
@@ -331,27 +404,28 @@ def register_builtin_commands() -> None:
     調整常用度只要改 order 數字即可。
     """
     # ── 10：安全閂（最常用）──
-    register_command(SlashCommand("arm", [], "解鎖車輛（允許移動）", _cmd_arm, order=10))
-    register_command(SlashCommand("disarm", [], "上鎖車輛（拒絕移動）", _cmd_disarm, order=11))
-    register_command(SlashCommand("estop", ["stop"], "緊急停止車輛（立即送 0 速度）", _cmd_estop, order=12))
+    register_command(SlashCommand("arm",    [], "解鎖車輛（允許移動）",           _cmd_arm,    order=10, example="/arm"))
+    register_command(SlashCommand("disarm", [], "上鎖車輛（拒絕移動）",           _cmd_disarm, order=11, example="/disarm"))
+    register_command(SlashCommand("estop", ["stop"], "緊急停止車輛（立即送 0 速度）", _cmd_estop, order=12, example="/estop"))
     # ── 20：移動控制 ──
-    register_command(SlashCommand("drive", [], "控制車子：forward/back/left/right/stop", _cmd_drive, order=20))
-    register_command(SlashCommand("goto", [], "送出地點座標給 Isaac Sim", _cmd_goto, order=21))
-    register_command(SlashCommand("route", [], "規劃路線：/route <起點> <終點>", _cmd_route, order=22))
-    register_command(SlashCommand("agent", [], "發指令給 AI agent，例如 /agent go_agent_route", _cmd_agent, order=23))
+    register_command(SlashCommand("drive",    [], "控制車子：<方向> <數字> second|meter", _cmd_drive,    order=20, example="/drive forward 2 meter"))
+    register_command(SlashCommand("setspeed", [], "設定 /drive 預設速度",                 _cmd_setspeed, order=21, example="/setspeed 1.5 0.3"))
+    register_command(SlashCommand("goto",     [], "送出地點座標給 Isaac Sim",             _cmd_goto,     order=22, example="/goto 應科  或  /goto list"))
+    register_command(SlashCommand("route",    [], "規劃路線",                             _cmd_route,    order=23, example="/route 應科 機械系館"))
+    register_command(SlashCommand("agent",    [], "發指令給 AI agent",                    _cmd_agent,    order=24, example="/agent go_agent_route"))
     # ── 30：人工批准 ──
-    register_command(SlashCommand("approve", [], "批准待處理的高風險動作", _cmd_approve, order=30))
-    register_command(SlashCommand("reject", [], "取消待處理的高風險動作", _cmd_reject, order=31))
+    register_command(SlashCommand("approve", [], "批准待處理的高風險動作", _cmd_approve, order=30, example="/approve"))
+    register_command(SlashCommand("reject",  [], "取消待處理的高風險動作", _cmd_reject,  order=31, example="/reject"))
     # ── 40：ROS2 內省 / 發佈 ──
-    register_command(SlashCommand("ros-topics", [], "列出目前 ROS2 topics", _cmd_ros_topics, order=40))
-    register_command(SlashCommand("ros-echo", [], "讀取指定 ROS2 topic 一次", _cmd_ros_echo, order=41))
-    register_command(SlashCommand("ros-type", [], "查詢指定 topic 的訊息型別", _cmd_ros_type, order=42))
-    register_command(SlashCommand("ros-pub", [], "發布 JSON 到 topic（自動推斷型別）", _cmd_ros_pub, order=43))
+    register_command(SlashCommand("ros-topics", [], "列出目前 ROS2 topics",          _cmd_ros_topics, order=40, example="/ros-topics"))
+    register_command(SlashCommand("ros-echo",   [], "讀取指定 ROS2 topic 一次",      _cmd_ros_echo,   order=41, example="/ros-echo /odom"))
+    register_command(SlashCommand("ros-type",   [], "查詢指定 topic 的訊息型別",     _cmd_ros_type,   order=42, example="/ros-type /cmd_vel"))
+    register_command(SlashCommand("ros-pub",    [], "發布 JSON 到 topic（自動推斷）", _cmd_ros_pub,    order=43, example='/ros-pub /chatter {"data":"hi"}'))
     # ── 50：設定 ──
-    register_command(SlashCommand("safety", [], "查看 / 調整安全上限（max-speed / max-time）", _cmd_safety, order=50))
-    register_command(SlashCommand("domain", [], "切換 ROS_DOMAIN_ID，例如 /domain 30", _cmd_domain, order=51))
-    register_command(SlashCommand("model", [], "切換模型，例如 /model qwen3:8b", _cmd_model, order=52))
+    register_command(SlashCommand("safety", [], "查看 / 調整安全上限",  _cmd_safety, order=50, example="/safety show  或  /safety max-speed 0.5"))
+    register_command(SlashCommand("domain", [], "切換 ROS_DOMAIN_ID",  _cmd_domain, order=51, example="/domain 30"))
+    register_command(SlashCommand("model",  [], "切換 LLM 模型",        _cmd_model,  order=52, example="/model qwen3:8b"))
     # ── 60：系統 / 會話 ──
-    register_command(SlashCommand("help", [], "顯示可用斜線指令列表", _cmd_help, order=60))
-    register_command(SlashCommand("clear", [], "清空對話記錄", _cmd_clear, order=61))
-    register_command(SlashCommand("bye", ["exit", "quit"], "關閉 ren-agent", _cmd_bye, order=62))
+    register_command(SlashCommand("help",  [],                    "顯示可用斜線指令列表", _cmd_help,  order=60, example="/help"))
+    register_command(SlashCommand("clear", [],                    "清空對話記錄",         _cmd_clear, order=61, example="/clear"))
+    register_command(SlashCommand("bye",   ["exit", "quit"],      "關閉 ren-agent",        _cmd_bye,   order=62, example="/bye"))
