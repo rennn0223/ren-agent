@@ -100,6 +100,8 @@ class Ros2Manager:
 
     def topic_type(self, topic: str) -> str | None:
         """查單一 topic 的訊息型別字串，例如 `geometry_msgs/msg/Twist`。"""
+        if not topic.startswith("/"):
+            topic = "/" + topic
         for name, types in self.topic_names_and_types():
             if name == topic and types:
                 return types[0]
@@ -171,6 +173,8 @@ class Ros2Manager:
         訂閱一次，收到第一個訊息就取消 subscription，回傳 YAML 字串。
         topic 不存在 / timeout 內沒人發布 → 回 None。
         """
+        if not topic.startswith("/"):
+            topic = "/" + topic
         type_str = self.topic_type(topic)
         if not type_str:
             return None
