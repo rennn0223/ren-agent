@@ -28,6 +28,11 @@ _lock = threading.Lock()
 _instance: "Ros2Manager | None" = None
 
 
+def _normalize_topic(topic: str) -> str:
+    """Ensure a ROS2 topic name has a leading '/'."""
+    return topic if topic.startswith("/") else "/" + topic
+
+
 class Ros2Unavailable(RuntimeError):
     """rclpy 無法載入或 ROS2 環境未 source。"""
 
@@ -100,8 +105,7 @@ class Ros2Manager:
 
     def topic_type(self, topic: str) -> str | None:
         """查單一 topic 的訊息型別字串，例如 `geometry_msgs/msg/Twist`。"""
-        if not topic.startswith("/"):
-            topic = "/" + topic
+        topic = _normalize_topic(topic)
         for name, types in self.topic_names_and_types():
             if name == topic and types:
                 return types[0]
@@ -115,6 +119,7 @@ class Ros2Manager:
 
     def get_publisher(self, topic: str, type_str: str):
         """取 cached publisher；不存在就建。QoS depth = 10。"""
+        topic = _normalize_topic(topic)
         key = (topic, type_str)
         pub = self._publishers.get(key)
         if pub is None:
@@ -173,8 +178,7 @@ class Ros2Manager:
         訂閱一次，收到第一個訊息就取消 subscription，回傳 YAML 字串。
         topic 不存在 / timeout 內沒人發布 → 回 None。
         """
-        if not topic.startswith("/"):
-            topic = "/" + topic
+        topic = _normalize_topic(topic)
         type_str = self.topic_type(topic)
         if not type_str:
             return None

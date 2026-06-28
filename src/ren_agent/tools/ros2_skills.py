@@ -22,6 +22,7 @@ from ren_agent.core.safety_state import DISARMED_MSG, is_armed
 from ren_agent.core.skills import Skill, register_skill
 from ren_agent.tools.ros2_node import (
     Ros2Manager,
+    _normalize_topic,
     ensure_json_dict,
     reinit_ros2,
     safe_get_ros2,
@@ -151,7 +152,7 @@ async def ros_publish_skill(
     # ── Twist 夾限（最後一道防線）──
     cfg = get_config()
     clamped_note = ""
-    if "Twist" in type_str and topic == cfg.ros2.cmd_vel_topic:
+    if "Twist" in type_str and _normalize_topic(topic) == _normalize_topic(cfg.ros2.cmd_vel_topic):
         safety = cfg.safety
         if _clamp_twist_in_place(data, safety.max_linear_speed, safety.max_angular_speed):
             clamped_note = (
