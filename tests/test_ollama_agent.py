@@ -67,8 +67,9 @@ def test_check_connection_success() -> None:
         fake_client.list = AsyncMock(return_value=fake_models)
 
         with patch("ren_agent.core.ollama_client.AsyncClient", return_value=fake_client):
-            ok = await agent.check_connection()
+            ok, err = await agent.check_connection()
 
         assert ok is True
+        assert err == ""
 
     asyncio.run(_run())

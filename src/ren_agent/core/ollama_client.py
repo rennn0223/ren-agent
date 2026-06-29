@@ -26,15 +26,10 @@ from loguru import logger
 from ollama import AsyncClient
 
 from ren_agent.core.config import OllamaConfig
+from ren_agent.core.llm_provider import BaseLLMProvider, ToolCallback
 
 
-# ── 型別別名 ─────────────────────────────────────────
-# TUI 用這個 callback 顯示 → 呼叫 / ← 結果
-ToolCallback = Callable[[str, dict, str], Awaitable[None]]
-"""(tool_name, arguments, result_str) — TUI 用來顯示 → 呼叫 / ← 結果。"""
-
-
-class OllamaAgent:
+class OllamaProvider(BaseLLMProvider):
     """
     對外的「對話 agent」，封裝 Ollama AsyncClient + 對話 history + tool loop。
     每次切模型會建新 instance（在 TUI 的 _set_model_skill）。
@@ -146,16 +141,29 @@ class OllamaAgent:
             # for-else：迴圈跑完沒 break = 達到上限
             yield "\n[警告] 工具呼叫超過上限，已中止。"
 
+    async def validate_model(self, model: str) -> tuple[bool, str]:
+        """確認 model 是否存在於本地 Ollama。返回 (ok, error_message)。"""
+        try:
+            client = AsyncClient(host=self.config.host)
+            response = await client.list()
+            available = [m.model for m in response.models]
+            if model not in available:
+                suggest = ", ".join(available) if available else "（無已下載模型）"
+                return False, f"找不到模型 {model!r}。可用：{suggest}"
+            return True, ""
+        except Exception as e:  # noqa: BLE001
+            return False, f"無法連線 Ollama：{e}"
+
     # ── 連線檢查 ─────────────────────────────────────
-    async def check_connection(self) -> bool:
-        """TUI 啟動時叫一次。失敗會在 status bar 顯示提示。"""
+    async def check_connection(self) -> tuple[bool, str]:
+        """TUI 啟動時叫一次。返回 (ok, error_message)。"""
         try:
             client = AsyncClient(host=self.config.host)
             await client.list()
-            return True
+            return True, ""
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Ollama 無法連線: {e}")
-            return False
+            return False, str(e)
 
 
 # ── 小工具：把 Ollama tool_call 物件展平成 dict ──────────
@@ -183,3 +191,7 @@ def _tc_to_dict(tc: Any) -> dict:
             "arguments": tc.function.arguments,
         }
     }
+
+
+# 向後相容別名
+OllamaAgent = OllamaProvider

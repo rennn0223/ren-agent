@@ -49,6 +49,7 @@ from textual.events import Resize
 from textual.geometry import Size
 from textual.reactive import reactive
 from textual.strip import Strip
+from textual.screen import ModalScreen
 from textual.widgets import Button, Input, RichLog, Static
 
 from ren_agent import __version__
@@ -58,8 +59,9 @@ from ren_agent.core.commands import (
     get_command,
     register_builtin_commands,
 )
-from ren_agent.core.config import DEFAULT_CONFIG_PATH, get_config
-from ren_agent.core.ollama_client import OllamaAgent
+from ren_agent.core.config import DEFAULT_CONFIG_PATH, current_model_label, get_config
+from ren_agent.core.llm_provider import BaseLLMProvider, create_provider
+from ren_agent.core.ollama_client import OllamaAgent  # 向後相容
 from ren_agent.core.skills import (
     Skill,
     all_tools,
@@ -167,7 +169,7 @@ _VLINE_BOX = box.Box(
 )
 
 
-def _build_welcome_panel(model: str) -> Panel:
+def _build_welcome_panel(label: str) -> Panel:
     # ── 左欄：臘腸狗 + 歡迎詞 + 環境資訊（皆置中）──
     left = Group(
         Text(""),
@@ -175,7 +177,7 @@ def _build_welcome_panel(model: str) -> Panel:
         Text(""),
         Align.center(Text(_MASCOT, style=C_ORANGE, no_wrap=True)),
         Text(""),
-        Align.center(Text(f"{model} on Ollama", style=C_DIM)),
+        Align.center(Text(label, style=C_DIM)),
         Align.center(Text("~/ren-agent", style=C_DIM)),
         Text(""),
     )
@@ -238,6 +240,108 @@ def _build_welcome_panel(model: str) -> Panel:
 
 
 # ══════════ Widgets ══════════════════════════════════════
+
+# ── API Key 輸入 Modal ──────────────────────────────────
+class ApiKeyModal(ModalScreen):
+    """輸入並測試第三方 LLM API Key 的 Modal。dismiss(key) 表示確認，dismiss(None) 表示取消。"""
+
+    CSS = """
+    ApiKeyModal {
+        align: center middle;
+    }
+    #modal-box {
+        width: 64;
+        height: auto;
+        background: #2a2a2a;
+        border: round #d07d50;
+        padding: 1 2;
+    }
+    #modal-title {
+        text-style: bold;
+        color: #d07d50;
+        margin-bottom: 1;
+    }
+    #modal-hint {
+        color: #999999;
+        margin-bottom: 1;
+    }
+    #key-input {
+        margin-bottom: 1;
+    }
+    #test-result {
+        height: 1;
+        margin-bottom: 1;
+        color: #999999;
+    }
+    #modal-buttons {
+        height: auto;
+        align: right middle;
+    }
+    #modal-buttons Button {
+        margin-left: 1;
+    }
+    """
+
+    def __init__(
+        self,
+        provider_name: str,
+        current_key: str = "",
+        test_fn: "Callable[[str], Awaitable[tuple[bool, str]]] | None" = None,
+    ):
+        super().__init__()
+        self._provider_name = provider_name
+        self._current_key = current_key
+        self._test_fn = test_fn
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="modal-box"):
+            yield Static(f"設定 {self._provider_name} API Key", id="modal-title")
+            yield Static("輸入 API Key 後可先測試，或直接儲存。", id="modal-hint")
+            yield Input(
+                password=True,
+                placeholder="貼上 API Key…",
+                id="key-input",
+                value=self._current_key,
+            )
+            yield Static("", id="test-result")
+            with Horizontal(id="modal-buttons"):
+                yield Button("測試", id="btn-test", variant="primary")
+                yield Button("儲存", id="btn-save", variant="success")
+                yield Button("取消", id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#key-input", Input).focus()
+
+    @work(exclusive=False)
+    async def _run_test(self, key: str) -> None:
+        result_label = self.query_one("#test-result", Static)
+        result_label.update("⟳ 測試中…")
+        if self._test_fn is None:
+            result_label.update("[yellow]（無測試函式）[/yellow]")
+            return
+        ok, err = await self._test_fn(key)
+        if ok:
+            result_label.update("[green]✓ 連線成功[/green]")
+        else:
+            short = err[:80] + "…" if len(err) > 80 else err
+            result_label.update(f"[red]✗ {short}[/red]")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id
+        if btn_id == "btn-test":
+            key = self.query_one("#key-input", Input).value.strip()
+            if key:
+                self._run_test(key)
+        elif btn_id == "btn-save":
+            key = self.query_one("#key-input", Input).value.strip()
+            self.dismiss(key or None)
+        elif btn_id == "btn-cancel":
+            self.dismiss(None)
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+
 
 class SlashMenu(Static):
     """
@@ -689,8 +793,8 @@ class RenAgentApp(App):
         self.config = get_config()
         self.config.ollama.model = model
         self.config.ollama.host = ollama_host
-        # 建 LLM agent，灌 system prompt
-        self.agent = OllamaAgent(config=self.config.ollama)
+        # 建 LLM agent（依 current_provider 選 provider），灌 system prompt
+        self.agent: BaseLLMProvider = create_provider(self.config)
         self.agent.set_system_prompt(self.config.agent.system_prompt)
 
         # 工作狀態
@@ -754,17 +858,17 @@ class RenAgentApp(App):
         register_safety_skills()
         # set_model 是 TUI-only skill（需要 self.agent，所以註冊在這裡）
         register_skill(
-            Skill("set_model", "切換 Ollama 模型", self._set_model_skill)
+            Skill("set_model", "切換 LLM 模型（ollama/openai/anthropic）", self._set_model_skill)
         )
 
         # 開場 welcome panel — 寫進 chat-log 當第一筆
         # 後續對話會把它往上推（Claude Code 行為）
         chat = self._chat()
         # expand=True：撐到整個對話區寬度，Align.center 才有空間置中
-        chat.write(_build_welcome_panel(self.config.ollama.model), expand=True)
+        chat.write(_build_welcome_panel(current_model_label(self.config)), expand=True)
         chat.write("")
         # 記住怎麼重建 welcome；終端 resize 時 CompactRichLog 會用它重畫保持置中
-        chat.welcome_factory = lambda: _build_welcome_panel(self.config.ollama.model)
+        chat.welcome_factory = lambda: _build_welcome_panel(current_model_label(self.config))
 
         # 背景測 Ollama 連線（thread worker，不阻塞 mount）
         self.check_ollama()
@@ -805,18 +909,133 @@ class RenAgentApp(App):
 
     # ── Skill 實作 ───────────────────────────────────────
 
-    async def _set_model_skill(self, name: str) -> str:
-        """/model 對應的 skill：切換 Ollama 模型，並重建 agent。"""
-        name = name.strip()
-        old = self.config.ollama.model
-        if not name:
-            return f"目前模型：{old}"
-        self.config.ollama.model = name
-        # 重建 agent；舊的 history 直接捨棄（換模型 = 新對話）
-        self.agent = OllamaAgent(config=self.config.ollama)
+    # ── _set_model_skill helpers ──────────────────────────
+
+    def _rebuild_agent(self) -> None:
+        """重建 agent（換 provider/model 後呼叫）；舊 history 捨棄。"""
+        self.agent = create_provider(self.config)
         self.agent.set_system_prompt(self.config.agent.system_prompt)
-        self.query_one(StatusBar).status = f"● 已切換模型為 {name}"
-        return f"模型已從 {old} 切換為 {name}"
+        label = current_model_label(self.config)
+        self.query_one(StatusBar).status = f"● 已切換模型為 {label}"
+        self.config.save_yaml(DEFAULT_CONFIG_PATH)
+
+    async def _switch_ollama(self, model: str) -> str:
+        from ren_agent.core.ollama_client import OllamaProvider
+        tmp = OllamaProvider(self.config.ollama)
+        ok, err = await tmp.validate_model(model)
+        if not ok:
+            return f"❌ {err}"
+        old = current_model_label(self.config)
+        self.config.ollama.model = model
+        self.config.current_provider = "ollama"
+        self._rebuild_agent()
+        return f"模型已從 {old} 切換為 {model}（Ollama）"
+
+    async def _switch_openai(self, model: str) -> str:
+        try:
+            from ren_agent.core.openai_provider import OpenAIProvider
+        except ImportError:
+            return "❌ openai package 未安裝。請執行：pip install openai"
+
+        # 沒有 key 時彈 Modal
+        if not self.config.openai.api_key:
+            async def _test(key: str) -> tuple[bool, str]:
+                from ren_agent.core.openai_provider import OpenAIProvider as _P
+                from ren_agent.core.config import OpenAIConfig
+                cfg = OpenAIConfig(api_key=key, base_url=self.config.openai.base_url, model=model)
+                return await _P(cfg).check_connection()
+
+            key = await self.push_screen_wait(ApiKeyModal("OpenAI", "", _test))
+            if not key:
+                return "已取消"
+            self.config.openai.api_key = key
+
+        # 驗證
+        self.config.openai.model = model
+        ok, err = await OpenAIProvider(self.config.openai).check_connection()
+        if not ok:
+            self.config.openai.api_key = ""
+            return f"❌ OpenAI API Key 驗證失敗：{err}"
+
+        old = current_model_label(self.config)
+        self.config.current_provider = "openai"
+        self._rebuild_agent()
+        return f"模型已從 {old} 切換為 {model}（OpenAI）"
+
+    async def _switch_anthropic(self, model: str) -> str:
+        try:
+            from ren_agent.core.anthropic_provider import AnthropicProvider
+        except ImportError:
+            return "❌ anthropic package 未安裝。請執行：pip install anthropic"
+
+        if not self.config.anthropic.api_key:
+            async def _test(key: str) -> tuple[bool, str]:
+                from ren_agent.core.anthropic_provider import AnthropicProvider as _P
+                from ren_agent.core.config import AnthropicConfig
+                cfg = AnthropicConfig(api_key=key, model=model)
+                return await _P(cfg).check_connection()
+
+            key = await self.push_screen_wait(ApiKeyModal("Anthropic", "", _test))
+            if not key:
+                return "已取消"
+            self.config.anthropic.api_key = key
+
+        self.config.anthropic.model = model
+        ok, err = await AnthropicProvider(self.config.anthropic).check_connection()
+        if not ok:
+            self.config.anthropic.api_key = ""
+            return f"❌ Anthropic API Key 驗證失敗：{err}"
+
+        old = current_model_label(self.config)
+        self.config.current_provider = "anthropic"
+        self._rebuild_agent()
+        return f"模型已從 {old} 切換為 {model}（Anthropic）"
+
+    async def _list_models(self) -> str:
+        """列出目前設定 + 可用 Ollama 模型。"""
+        from ren_agent.core.ollama_client import OllamaProvider
+        tmp = OllamaProvider(self.config.ollama)
+        ok, err = await tmp.check_connection()
+        if ok:
+            from ollama import AsyncClient
+            resp = await AsyncClient(host=self.config.ollama.host).list()
+            names = [m.model for m in resp.models]
+            ollama_part = "  " + "\n  ".join(names) if names else "  （無已下載模型）"
+        else:
+            ollama_part = f"  ✗ 無法連線：{err}"
+
+        openai_status = "✓ 已設定" if self.config.openai.api_key else "✗ 未設定 API Key"
+        anthropic_status = "✓ 已設定" if self.config.anthropic.api_key else "✗ 未設定 API Key"
+        current = current_model_label(self.config)
+
+        return (
+            f"目前：{current}\n\n"
+            f"Ollama 本地模型（{self.config.ollama.host}）：\n{ollama_part}\n\n"
+            f"OpenAI  — {openai_status}（目前模型：{self.config.openai.model}）\n"
+            f"Anthropic — {anthropic_status}（目前模型：{self.config.anthropic.model}）\n\n"
+            "切換方式：/model ollama:qwen3:8b  /model openai:gpt-4o  /model anthropic:claude-sonnet-4-6\n"
+            "列表：/model list"
+        )
+
+    async def _set_model_skill(self, name: str) -> str:
+        """/model 對應的 skill：支援 ollama/openai/anthropic，provider:model 格式。"""
+        name = name.strip()
+        if not name:
+            return f"目前模型：{current_model_label(self.config)}"
+        if name == "list":
+            return await self._list_models()
+
+        # 解析 provider:model（e.g. "openai:gpt-4o"；無前綴視為 ollama）
+        provider, _, model = name.partition(":")
+        if provider not in {"ollama", "openai", "anthropic"}:
+            # 向後相容：沒有 provider 前綴，整段視為 ollama model
+            provider, model = "ollama", name
+
+        if provider == "openai":
+            return await self._switch_openai(model)
+        if provider == "anthropic":
+            return await self._switch_anthropic(model)
+        return await self._switch_ollama(model)
 
     # ── 佇列管理 ─────────────────────────────────────────
     # 為什麼要佇列：思考中（@work exclusive 跑著）時，使用者送出的新訊息
@@ -843,7 +1062,7 @@ class RenAgentApp(App):
     def _update_queue_status(self) -> None:
         status = self.query_one(StatusBar)
         pending = len(self._pending_queue)
-        base = f"{self.config.ollama.model}"
+        base = current_model_label(self.config)
         if self._last_response_at:
             base = f"{base} · last {self._last_response_at}"
         if pending:
@@ -1051,11 +1270,16 @@ class RenAgentApp(App):
     def check_ollama(self) -> None:
         """thread worker（避免 mount 時阻塞）；用 call_from_thread 寫回 UI。"""
         status = self.query_one(StatusBar)
-        ok = asyncio.run(self.agent.check_connection())
+        ok, err = asyncio.run(self.agent.check_connection())
+        label = current_model_label(self.config)
         if ok:
-            msg = f"● 已連線 Ollama ({self.config.ollama.model})"
+            msg = f"● 已連線 {label}"
         else:
-            msg = "✗ Ollama 未啟動 — 請執行: ollama serve"
+            provider = self.config.current_provider
+            if provider == "ollama":
+                msg = "✗ Ollama 未啟動 — 請執行: ollama serve"
+            else:
+                msg = f"✗ {label} 連線失敗：{err[:60]}"
         self.call_from_thread(setattr, status, "status", msg)
 
     # ── Streaming（主對話 + tool calling）─────────────────
@@ -1075,7 +1299,7 @@ class RenAgentApp(App):
         chat = self._chat()
         status = self.query_one(StatusBar)
         self._set_thinking(True)
-        status.status = f"⟳ 思考中... · {self.config.ollama.model}"
+        status.status = f"⟳ 思考中... · {current_model_label(self.config)}"
 
         chat.write_user(message)
         # ── 助手回覆區塊 ──
@@ -1117,7 +1341,7 @@ class RenAgentApp(App):
         self._thinking = True
         self._set_thinking(True)
         self.query_one(StatusBar).status = (
-            f"⟳ 執行 {raw} · {self.config.ollama.model}"
+            f"⟳ 執行 {raw} · {current_model_label(self.config)}"
         )
         try:
             await self.handle_slash_command(raw)
