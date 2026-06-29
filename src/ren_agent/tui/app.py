@@ -445,19 +445,6 @@ class CompactRichLog(RichLog):
     CMD_COL = CMD_COL
     _agent_stream_line_count: int = 0
 
-    # 開場 welcome panel 的重建函式；只要它還在（使用者尚未開始對話），
-    # 終端 resize 時就 clear 重畫一次，讓 welcome 永遠水平置中。
-    welcome_factory: "Callable[[], Any] | None" = None
-
-    def on_resize(self, event: Resize) -> None:
-        """終端尺寸改變時，若還停在 welcome 畫面就重畫以維持置中。"""
-        super().on_resize(event)
-        if self.welcome_factory is not None:
-            self.clear()
-            # expand=True：撐到整個對話區寬度，Align.center 才有空間置中
-            self.write(self.welcome_factory(), expand=True)
-            self.write("")
-
     # ── 各種 write helper（不同類型訊息上不同色）──
     def write_user(self, message: str) -> None:
         """使用者送出的訊息：深色背景 + › 前綴。"""
@@ -768,6 +755,15 @@ class RenAgentApp(App):
         padding: 0 1 1 1;
         color: {C_DIM};
     }}
+
+    #hero {{
+        height: auto;
+        padding: 0 1;
+    }}
+
+    #hero.-hidden {{
+        display: none;
+    }}
     """
 
     # ── 鍵盤快捷鍵 ────────────────────────────────────
@@ -795,7 +791,7 @@ class RenAgentApp(App):
         self.config.ollama.host = ollama_host
         # 建 LLM agent（依 current_provider 選 provider），灌 system prompt
         self.agent: BaseLLMProvider = create_provider(self.config)
-        self.agent.set_system_prompt(self.config.agent.system_prompt)
+        self.agent.set_system_prompt(self._build_system_prompt())
 
         # 工作狀態
         self._thinking = False
@@ -823,6 +819,7 @@ class RenAgentApp(App):
         """Textual 啟動時呼叫一次，把 widget 組起來。"""
         # 對話區（佔滿剩餘高度）
         with Vertical(id="chat-panel"):
+            yield Static(id="hero")
             yield CompactRichLog(
                 id="chat-log", highlight=True, markup=True, wrap=True,
             )
@@ -861,14 +858,8 @@ class RenAgentApp(App):
             Skill("set_model", "切換 LLM 模型（ollama/openai/anthropic）", self._set_model_skill)
         )
 
-        # 開場 welcome panel — 寫進 chat-log 當第一筆
-        # 後續對話會把它往上推（Claude Code 行為）
-        chat = self._chat()
-        # expand=True：撐到整個對話區寬度，Align.center 才有空間置中
-        chat.write(_build_welcome_panel(current_model_label(self.config)), expand=True)
-        chat.write("")
-        # 記住怎麼重建 welcome；終端 resize 時 CompactRichLog 會用它重畫保持置中
-        chat.welcome_factory = lambda: _build_welcome_panel(current_model_label(self.config))
+        # 開場 welcome hero — 獨立 Static widget（可隨時 .update()）
+        self._update_hero()
 
         # 背景測 Ollama 連線（thread worker，不阻塞 mount）
         self.check_ollama()
@@ -911,13 +902,23 @@ class RenAgentApp(App):
 
     # ── _set_model_skill helpers ──────────────────────────
 
+    def _build_system_prompt(self) -> str:
+        return self.config.agent.system_prompt
+
+    def _update_hero(self) -> None:
+        """Hero widget の内容を現在のモデル名で更新する。"""
+        self.query_one("#hero", Static).update(
+            _build_welcome_panel(current_model_label(self.config))
+        )
+
     def _rebuild_agent(self) -> None:
         """重建 agent（換 provider/model 後呼叫）；舊 history 捨棄。"""
         self.agent = create_provider(self.config)
-        self.agent.set_system_prompt(self.config.agent.system_prompt)
+        self.agent.set_system_prompt(self._build_system_prompt())
         label = current_model_label(self.config)
         self.query_one(StatusBar).status = f"● 已切換模型為 {label}"
         self.config.save_yaml(DEFAULT_CONFIG_PATH)
+        self._update_hero()
 
     async def _switch_ollama(self, model: str) -> str:
         from ren_agent.core.ollama_client import OllamaProvider

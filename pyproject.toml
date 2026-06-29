@@ -1,6 +1,6 @@
 [project]
 name = "ren-agent"
-version = "0.4.5"
+version = "0.4.6"
 description = "Automotive AI Agent with TUI, ROS2 control, and Ollama backend"
 readme = "README.md"
 requires-python = ">=3.12"
