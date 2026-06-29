@@ -21,6 +21,19 @@ class OllamaConfig(BaseModel):
     stream: bool = True       # 是否串流
 
 
+# ── OpenAI 子設定 ─────────────────────────────────────
+class OpenAIConfig(BaseModel):
+    api_key: str = ""
+    base_url: str = "https://api.openai.com/v1"
+    model: str = "gpt-4o"
+
+
+# ── Anthropic 子設定 ──────────────────────────────────
+class AnthropicConfig(BaseModel):
+    api_key: str = ""
+    model: str = "claude-sonnet-4-6"
+
+
 # ── Agent 子設定（人格 / 角色提示）────────────────────
 class AgentConfig(BaseModel):
     name: str = "ren-agent"
@@ -61,6 +74,9 @@ class SafetyConfig(BaseModel):
 # ── 頂層設定 ──────────────────────────────────────────
 class AppConfig(BaseModel):
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
+    openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
+    anthropic: AnthropicConfig = Field(default_factory=AnthropicConfig)
+    current_provider: str = "ollama"   # "ollama" | "openai" | "anthropic"
     agent: AgentConfig = Field(default_factory=AgentConfig)
     ros2: Ros2Config = Field(default_factory=Ros2Config)
     safety: SafetyConfig = Field(default_factory=SafetyConfig)
@@ -88,6 +104,16 @@ DEFAULT_CONFIG_PATH = Path.home() / ".config" / "ren-agent" / "config.yaml"
 
 # 模組級單例（首次呼叫 get_config 時載入）
 _cached: AppConfig | None = None
+
+
+def current_model_label(config: "AppConfig") -> str:
+    """Return a human-readable 'model on Provider' string for the current provider."""
+    p = config.current_provider
+    if p == "openai":
+        return f"{config.openai.model} on OpenAI"
+    if p == "anthropic":
+        return f"{config.anthropic.model} on Anthropic"
+    return f"{config.ollama.model} on Ollama"
 
 
 def get_config() -> AppConfig:

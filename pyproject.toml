@@ -1,6 +1,6 @@
 [project]
 name = "ren-agent"
-version = "0.4.4"
+version = "0.4.5"
 description = "Automotive AI Agent with TUI, ROS2 control, and Ollama backend"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -22,6 +22,11 @@ dependencies = [
 [project.scripts]
 ren-agent = "ren_agent.__main__:app"
 ren-agent-tui = "ren_agent.tui.main:run"
+
+[project.optional-dependencies]
+openai = ["openai>=1.0"]
+anthropic = ["anthropic>=0.40"]
+all-providers = ["openai>=1.0", "anthropic>=0.40"]
 
 [dependency-groups]
 dev = [
