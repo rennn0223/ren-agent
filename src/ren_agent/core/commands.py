@@ -240,8 +240,8 @@ _LINEAR_DIRS = {"forward", "back"}
 _DRIVE_USAGE = (
     "用法：/drive <方向> <數字> <單位>  或  /drive stop\n"
     "  方向：forward / back / left / right\n"
-    "  單位：second（秒）或 meter（公尺）\n"
-    "範例：/drive forward 2 meter  ·  /drive back 3 second  ·  /drive stop"
+    "  單位：second（秒）·  meter（公尺，僅 forward / back）\n"
+    "範例：/drive forward 2 meter  ·  /drive left 3 second  ·  /drive stop"
 )
 
 
@@ -289,8 +289,27 @@ async def _cmd_drive(ctx: CommandContext, args: str) -> None:
         )
         return
 
+    if unit == "meter" and direction not in _LINEAR_DIRS:
+        ctx.write_system(
+            f"'meter' 單位僅適用於線性方向（forward / back）。\n"
+            f"角度方向（{direction}）請使用 second。\n"
+            "範例：/drive left 3 second"
+        )
+        return
+
+    from ren_agent.core.config import get_config
+    cfg = get_config()
     speed = _drive_linear_speed if direction in _LINEAR_DIRS else _drive_angular_speed
-    duration = value if unit == "second" else value / speed
+    if unit == "second":
+        duration = value
+    else:
+        # 用安全夾限後的有效速度換算，避免 drive_skill 夾限後實際行駛距離短於指定值
+        effective_speed = min(speed, cfg.safety.max_linear_speed)
+        if effective_speed <= 0:
+            ctx.write_system("內部錯誤：有效速度為 0，請用 /setspeed 重設速度。")
+            return
+        speed = effective_speed
+        duration = value / effective_speed
 
     await ctx.run_skill("drive", direction=direction, speed=speed, duration=duration)
 

@@ -57,24 +57,24 @@ def test_drive_second_unit() -> None:
 
 
 def test_drive_meter_unit() -> None:
-    """forward 2 meter → duration = 2.0 / 1.0 = 2.0"""
+    """forward 2 meter → effective_speed = min(1.0, max_linear_speed=0.5) = 0.5 → duration = 4.0"""
     register_builtin_commands()
     cmd = get_command("drive")
     assert cmd is not None
     ctx = DummyCtx()
     asyncio.run(cmd.handler(ctx, "forward 2 meter"))
-    assert ctx.skills_log == [("drive", {"direction": "forward", "speed": 1.0, "duration": 2.0})]
+    assert ctx.skills_log == [("drive", {"direction": "forward", "speed": 0.5, "duration": 4.0})]
 
 
 def test_drive_meter_unit_aliases() -> None:
-    """meters / m 都合法"""
+    """meters / m 都合法；effective_speed = min(1.0, 0.5) = 0.5 → back 1 meter = 2.0s"""
     register_builtin_commands()
     cmd = get_command("drive")
     assert cmd is not None
     for unit in ("meters", "m"):
         ctx = DummyCtx()
         asyncio.run(cmd.handler(ctx, f"back 1 {unit}"))
-        assert ctx.skills_log == [("drive", {"direction": "back", "speed": 1.0, "duration": 1.0})], unit
+        assert ctx.skills_log == [("drive", {"direction": "back", "speed": 0.5, "duration": 2.0})], unit
 
 
 def test_drive_second_aliases() -> None:
@@ -108,6 +108,18 @@ def test_drive_angular_uses_angular_speed() -> None:
     assert ctx.skills_log == [("drive", {"direction": "left", "speed": 0.3, "duration": 3.0})]
 
 
+def test_drive_angular_meter_rejected() -> None:
+    """left/right + meter 應被拒絕，角度方向無法用 meter 換算 duration"""
+    register_builtin_commands()
+    cmd = get_command("drive")
+    assert cmd is not None
+    for direction in ("left", "right"):
+        ctx = DummyCtx()
+        asyncio.run(cmd.handler(ctx, f"{direction} 1 meter"))
+        assert ctx.skills_log == [], direction
+        assert any("meter" in m and "forward" in m for m in ctx.system), direction
+
+
 def test_drive_invalid_unit_shows_error() -> None:
     register_builtin_commands()
     cmd = get_command("drive")
@@ -139,7 +151,7 @@ def test_drive_invalid_direction_shows_error() -> None:
 
 
 def test_setspeed_updates_drive_speed() -> None:
-    """setspeed 後，drive 用新速度計算 duration"""
+    """setspeed 設低於 safety 上限的值後，drive meter 用新速度計算 duration"""
     import ren_agent.core.commands as _cmds
     register_builtin_commands()
     # reset to known state
@@ -149,15 +161,16 @@ def test_setspeed_updates_drive_speed() -> None:
     setspeed_cmd = get_command("setspeed")
     assert setspeed_cmd is not None
     ctx = DummyCtx()
-    asyncio.run(setspeed_cmd.handler(ctx, "2.0 0.5"))
-    assert _cmds._drive_linear_speed == 2.0
-    assert _cmds._drive_angular_speed == 0.5
+    # 0.4 < max_linear_speed(0.5)，effective_speed = 0.4
+    asyncio.run(setspeed_cmd.handler(ctx, "0.4 0.2"))
+    assert _cmds._drive_linear_speed == 0.4
+    assert _cmds._drive_angular_speed == 0.2
 
-    # forward 2 meter with speed=2.0 → duration=1.0
+    # forward 2 meter: effective = min(0.4, 0.5) = 0.4 → duration = 5.0
     drive_cmd = get_command("drive")
     ctx2 = DummyCtx()
     asyncio.run(drive_cmd.handler(ctx2, "forward 2 meter"))
-    assert ctx2.skills_log == [("drive", {"direction": "forward", "speed": 2.0, "duration": 1.0})]
+    assert ctx2.skills_log == [("drive", {"direction": "forward", "speed": 0.4, "duration": 5.0})]
 
     # restore
     _cmds._drive_linear_speed = 1.0
